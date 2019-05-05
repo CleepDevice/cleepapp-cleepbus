@@ -190,12 +190,12 @@ class Cleepbus(RaspIotModule):
         self.logger.debug(u'Received event %s' % event)
 
         #network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
-        if event[u'event']==u'system.network.up' and not self.external_bus.is_running():
+        if event[u'event']==u'network.status.up' and not self.external_bus.is_running():
             #start external bus
             self.__start_external_bus()
             return
 
-        elif event[u'event']==u'system.network.down' and self.external_bus.is_running():
+        elif event[u'event']==u'network.status.down' and self.external_bus.is_running():
             #stop external bus
             self.__stop_external_bus()
             return
