@@ -7,6 +7,7 @@ from raspiot.raspiot import RaspIotModule
 from raspiot.libs.internals.externalbus import PyreBus
 from raspiot.libs.configs.hostname import Hostname
 from raspiot import __version__ as VERSION
+import raspiot.libs.internals.tools as Tools
 import raspiot
 import json
 import uuid
@@ -72,7 +73,21 @@ class Cleepbus(RaspIotModule):
         Return:
             dict: dict of headers (only string supported)
         """
+        #get mac addresses
         macs = self.external_bus.get_mac_addresses()
+
+        #get installed modules
+        modules = {}
+        try:
+            resp = self.send_command(u'get_modules', u'inventory', timeout=10.0)
+            if not resp[u'error']:
+                modules = resp[u'data']
+        except:
+            self.logger.exception(u'Error occured while getting installed modules')
+
+        #get device hardware infos
+        hardware = Tools.raspberry_pi_infos()
+
         #TODO handle port and ssl when security implemented
         headers = {
             u'uuid': self.uuid,
@@ -81,7 +96,15 @@ class Cleepbus(RaspIotModule):
             u'port': '80',
             u'macs': json.dumps(macs),
             u'ssl': '0',
-            u'cleepdesktop': '0'
+            u'cleepdesktop': '0',
+            u'apps': u','.join(modules.keys()),
+            u'hwmodel': u'%s' % hardware[u'model'],
+            u'hwrevision': u'%s' % hardware[u'pcbrevision'],
+            u'hwmemory': u'%s' % hardware[u'memory'],
+            u'hwaudio': u'1' if hardware[u'audio'] else u'0',
+            u'hwwireless': u'1' if hardware[u'wireless'] else u'0',
+            u'hwethernet': u'1' if hardware[u'ethernet'] else u'0',
+            u'hwcode': hardware[u'code'],
         }
 
         return headers
