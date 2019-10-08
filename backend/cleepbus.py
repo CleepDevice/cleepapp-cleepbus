@@ -104,7 +104,7 @@ class Cleepbus(RaspIotModule):
             u'hwaudio': u'1' if hardware[u'audio'] else u'0',
             u'hwwireless': u'1' if hardware[u'wireless'] else u'0',
             u'hwethernet': u'1' if hardware[u'ethernet'] else u'0',
-            u'hwcode': hardware[u'code'],
+            u'hwrevision': hardware[u'revision'],
         }
 
         return headers
