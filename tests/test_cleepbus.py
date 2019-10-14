@@ -9,7 +9,7 @@ import os
 import time
 from mock import Mock
 
-class TestActions(unittest.TestCase):
+class TestCleepbus(unittest.TestCase):
 
     def setUp(self):
         self.session = session.TestSession(logging.CRITICAL)
