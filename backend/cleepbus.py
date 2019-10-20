@@ -20,7 +20,7 @@ class Cleepbus(RaspIotModule):
     Cleepbus is the external bus to communicate with other Cleep devices
     """
     MODULE_AUTHOR = u'Cleep'
-    MODULE_VERSION = u'1.1.0'
+    MODULE_VERSION = u'1.1.1'
     MODULE_CATEGORY = u'APPLICATION'
     MODULE_PRICE = 0
     MODULE_DEPS = []
