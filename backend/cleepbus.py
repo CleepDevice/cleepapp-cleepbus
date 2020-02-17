@@ -26,7 +26,6 @@ class Cleepbus(RaspIotModule):
     MODULE_DEPS = []
     MODULE_DESCRIPTION = u'Enables communications between all your Cleep devices through your home network'
     MODULE_LONGDESCRIPTION = u'Application that enables communication between devices'
-    MODULE_CORE = True
     MODULE_TAGS = [u'bus', u'communication']
     MODULE_COUNTRY = None
     MODULE_URLINFO = u'https://github.com/tangb/cleepmod-cleepbus/wiki/CleepBus-module'
