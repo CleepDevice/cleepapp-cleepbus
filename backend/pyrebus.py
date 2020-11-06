@@ -19,7 +19,7 @@ from pyre_gevent.zhelper import u
 import netifaces
 import netaddr
 import ipaddress
-from raspiot.libs.internals.externalbus import ExternalBus
+from cleep.libs.internals.externalbus import ExternalBus
 
 
 class PyreBus(ExternalBus):
@@ -139,7 +139,7 @@ class PyreBus(ExternalBus):
         #send stop message to unblock pyre task
         if self.pipe_in is not None:
             self.logger.debug('Send STOP on pipe')
-            self.pipe_in.send(json.dumps(self.BUS_STOP.encode('utf-8')))
+            self.pipe_in.send(json.dumps(self.BUS_STOP).encode('utf-8'))
             time.sleep(0.15)
 
             #and close everything
@@ -149,7 +149,12 @@ class PyreBus(ExternalBus):
             self.pipe_out.close()
             self.pipe_out = None
 
-            self.node.stop()
+            try:
+                self.node.stop()
+            except zmq.ZMQError:
+                pass
+            except:
+                self.logger.exception('Exception stopping pyre node')
             time.sleep(0.15)
             self.node = None
             self.node_socket = None
@@ -221,16 +226,16 @@ class PyreBus(ExternalBus):
         """
         #check configuration
         if not self.__externalbus_configured:
-            self.logger.debug(u'External bus is not configured yet, maybe no netword connection')
+            self.logger.debug('External bus is not configured yet, maybe no netword connection')
             return False
 
         try:
-            #self.logger.debug(u'Polling...')
+            #self.logger.debug('Polling...')
             items = dict(self.poller.poll(self.POLL_TIMEOUT))
 
         except KeyboardInterrupt:
             #stop requested by user
-            self.logger.debug(u'Stop Pyre bus')
+            self.logger.debug('Stop Pyre bus')
             self.node.stop()
             return False
 
@@ -240,12 +245,12 @@ class PyreBus(ExternalBus):
         if self.pipe_out in items and items[self.pipe_out]==zmq.POLLIN:
             #message to send
             data = self.pipe_out.recv()
-            self.logger.debug(u'Raw data received on pipe: %s' % data)
-            message = json.loads(data.decode(u'utf-8'))
+            self.logger.debug('Raw data received on pipe: %s' % data)
+            message = json.loads(data.decode('utf-8'))
 
             #stop node
             if message==self.BUS_STOP:
-                self.logger.debug(u'Stop Pyre bus')
+                self.logger.debug('Stop Pyre bus')
                 self.node.stop()
                 #return false to allow 'run' function to end infinite loop
                 return False
@@ -281,7 +286,7 @@ class PyreBus(ExternalBus):
                 try:
                     data_content = data.pop(0)
                     self.logger.debug('Raw data received on bus: %s' % data_content)
-                    message = json.loads(data_content.decode(u'utf-8'))
+                    message = json.loads(data_content.decode('utf-8'))
                     peer_infos = self.get_peer_infos(data_peer)
                     self.on_message_received(ExternalBusMessage(peer_infos, message))
                 except:
@@ -305,8 +310,8 @@ class PyreBus(ExternalBus):
                         infos = self.decode_bus_headers(headers)
 
                         #fill with some extra infos
-                        infos[u'id'] = str(data_peer)
-                        infos[u'ip'] = peer_endpoint.hostname
+                        infos['id'] = str(data_peer)
+                        infos['ip'] = peer_endpoint.hostname
 
                         #save peer and trigger callback
                         self._add_peer(data_peer, infos)
@@ -374,7 +379,7 @@ class PyreBus(ExternalBus):
         message.device_id = device_id
 
         #send message
-        self.pipe_in.send(json.dumps(message.to_dict()).encode(u'utf-8'))
+        self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
 
     def send_event(self, event, params, device_id, peer_id):
         """
@@ -390,7 +395,7 @@ class PyreBus(ExternalBus):
         if peer_id not in self.peers.keys():
             raise Exception('Invalid peer specified')
         elif not self.__externalbus_configured:
-            self.logger.debug(u'External bus is not configured yet, maybe no netword connection')
+            self.logger.debug('External bus is not configured yet, maybe no netword connection')
             return False
 
         #prepare message
@@ -401,7 +406,7 @@ class PyreBus(ExternalBus):
         message.device_id = device_id
 
         #send message
-        self.pipe_in.send(json.dumps(message.to_dict()).encode(u'utf-8'))
+        self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
 
 
 if __name__ == '__main__':

@@ -1,41 +1,38 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-    
-import os
-import logging
-from raspiot.raspiot import RaspIotModule
-from raspiot.libs.internals.externalbus import PyreBus
-from raspiot.libs.configs.hostname import Hostname
-from raspiot import __version__ as VERSION
-import raspiot.libs.internals.tools as Tools
-import raspiot
+# !/usr/bin/env python
+#  -*- coding: utf-8 -*-
+
 import json
 import uuid
+from distutils.util import strtobool
+from cleep.core import CleepModule
+from cleep.libs.configs.hostname import Hostname
+from cleep import __version__ as VERSION
+import cleep.libs.internals.tools as Tools
+from pyrebus import PyreBus
 
-__all__ = [u'Cleepbus']
+__all__ = ['Cleepbus']
 
-
-class Cleepbus(RaspIotModule):
+class Cleepbus(CleepModule):
     """
     Cleepbus is the external bus to communicate with other Cleep devices
     """
-    MODULE_AUTHOR = u'Cleep'
-    MODULE_VERSION = u'1.1.1'
-    MODULE_CATEGORY = u'APPLICATION'
+    MODULE_AUTHOR = 'Cleep'
+    MODULE_VERSION = '1.1.1'
+    MODULE_CATEGORY = 'APPLICATION'
     MODULE_PRICE = 0
     MODULE_DEPS = []
-    MODULE_DESCRIPTION = u'Enables communications between all your Cleep devices through your home network'
-    MODULE_LONGDESCRIPTION = u'Application that enables communication between devices'
-    MODULE_TAGS = [u'bus', u'communication']
+    MODULE_DESCRIPTION = 'Enables communications between all your Cleep devices through your home network'
+    MODULE_LONGDESCRIPTION = 'Application that enables communication between devices'
+    MODULE_TAGS = ['bus', 'communication']
     MODULE_COUNTRY = None
-    MODULE_URLINFO = u'https://github.com/tangb/cleepmod-cleepbus/wiki/CleepBus-module'
+    MODULE_URLINFO = 'https://github.com/tangb/cleepmod-cleepbus/wiki/CleepBus-module'
     MODULE_URLHELP = None
     MODULE_URLSITE = None
-    MODULE_URLBUGS = u'https://github.com/tangb/cleepmod-cleepbus/issues'
+    MODULE_URLBUGS = 'https://github.com/tangb/cleepmod-cleepbus/issues'
 
-    MODULE_CONFIG_FILE = u'cleepbus.conf'
+    MODULE_CONFIG_FILE = 'cleepbus.conf'
     DEFAULT_CONFIG = {
-        u'uuid': None
+        'uuid': None
     }
 
     def __init__(self, bootstrap, debug_enabled):
@@ -46,10 +43,17 @@ class Cleepbus(RaspIotModule):
             bootstrap (dict): bootstrap objects
             debug_enabled (bool): flag to set debug level to logger
         """
-        RaspIotModule.__init__(self, bootstrap, debug_enabled)
+        CleepModule.__init__(self, bootstrap, debug_enabled)
 
-        #members
-        self.external_bus = PyreBus(self.__on_message_received, self.__on_peer_connected, self.__on_peer_disconnected, self.__decode_bus_headers, debug_enabled, self.crash_report)
+        # members
+        self.external_bus = PyreBus(
+            self._on_message_received,
+            self._on_peer_connected,
+            self._on_peer_disconnected,
+            self._decode_bus_headers,
+            debug_enabled,
+            self.crash_report
+        )
         self.devices = {}
         self.hostname = Hostname(self.cleep_filesystem)
         self.uuid = None
@@ -58,12 +62,12 @@ class Cleepbus(RaspIotModule):
         """
         Configure module
         """
-        #set device uuid if not setted yet
-        self.uuid = self._get_config_field(u'uuid')
+        # set device uuid if not setted yet
+        self.uuid = self._get_config_field('uuid')
         if self.uuid is None:
             self.logger.debug('Set device uuid')
             self.uuid = str(uuid.uuid4())
-            self._set_config_field(u'uuid', self.uuid)
+            self._set_config_field('uuid', self.uuid)
 
     def get_bus_headers(self):
         """
@@ -72,43 +76,43 @@ class Cleepbus(RaspIotModule):
         Return:
             dict: dict of headers (only string supported)
         """
-        #get mac addresses
+        # get mac addresses
         macs = self.external_bus.get_mac_addresses()
 
-        #get installed modules
+        # get installed modules
         modules = {}
         try:
-            resp = self.send_command(u'get_modules', u'inventory', timeout=10.0)
-            if not resp[u'error']:
-                modules = resp[u'data']
-        except:
-            self.logger.exception(u'Error occured while getting installed modules')
+            resp = self.send_command('get_modules', 'inventory', timeout=10.0)
+            if not resp['error']:
+                modules = resp['data']
+        except Exception:
+            self.logger.exception('Error occured while getting installed modules')
 
-        #get device hardware infos
+        # get device hardware infos
         hardware = Tools.raspberry_pi_infos()
 
-        #TODO handle port and ssl when security implemented
+        # TODO handle port and ssl when security implemented
         headers = {
-            u'uuid': self.uuid,
-            u'version': VERSION,
-            u'hostname': self.hostname.get_hostname(),
-            u'port': '80',
-            u'macs': json.dumps(macs),
-            u'ssl': '0',
-            u'cleepdesktop': '0',
-            u'apps': u','.join(modules.keys()),
-            u'hwmodel': u'%s' % hardware[u'model'],
-            u'hwrevision': u'%s' % hardware[u'pcbrevision'],
-            u'hwmemory': u'%s' % hardware[u'memory'],
-            u'hwaudio': u'1' if hardware[u'audio'] else u'0',
-            u'hwwireless': u'1' if hardware[u'wireless'] else u'0',
-            u'hwethernet': u'1' if hardware[u'ethernet'] else u'0',
-            u'hwrevision': hardware[u'revision'],
+            'uuid': self.uuid,
+            'version': VERSION,
+            'hostname': self.hostname.get_hostname(),
+            'port': '80',
+            'macs': json.dumps(macs),
+            'ssl': '0',
+            'cleepdesktop': '0',
+            'apps': ','.join(modules.keys()),
+            'hwmodel': '%s' % hardware['model'],
+            'pcbrevision': '%s' % hardware['pcbrevision'],
+            'hwmemory': '%s' % hardware['memory'],
+            'hwaudio': '1' if hardware['audio'] else '0',
+            'hwwireless': '1' if hardware['wireless'] else '0',
+            'hwethernet': '1' if hardware['ethernet'] else '0',
+            'hwrevision': hardware['revision'],
         }
 
         return headers
 
-    def __decode_bus_headers(self, headers):
+    def _decode_bus_headers(self, headers):
         """
         Decode bus headers fields
 
@@ -118,22 +122,23 @@ class Cleepbus(RaspIotModule):
         Return:
             dict: dict with parsed values
         """
-        if u'port' in headers.keys():
-            headers[u'port'] = int(headers[u'port'])
-        if u'ssl' in headers.keys():
-            headers[u'ssl'] = bool(eval(headers[u'ssl']))
-        if u'cleepdesktop' in headers.keys():
-            headers[u'cleepdesktop'] = bool(eval(headers[u'cleepdesktop']))
-        if u'macs' in headers.keys():
-            headers[u'macs'] = json.loads(headers[u'macs'])
+        if 'port' in headers:
+            headers['port'] = int(headers['port'])
+        if 'ssl' in headers:
+            headers['ssl'] = bool(strtobool(headers['ssl']))
+        if 'cleepdesktop' in headers:
+            headers['cleepdesktop'] = bool(strtobool(headers['cleepdesktop']))
+        if 'macs' in headers:
+            headers['macs'] = json.loads(headers['macs'])
 
         return headers
 
-    def _stop(self):
+    def _on_stop(self):
         """
         Stop module
         """
-        #stop bus
+        # stop bus
+        self.logger.trace('Stop module requested')
         self.__stop_external_bus()
 
     def _custom_process(self):
@@ -147,14 +152,13 @@ class Cleepbus(RaspIotModule):
         """
         Start external bus
         """
-        self.logger.debug(u'Start external bus')
         self.external_bus.start(self.get_bus_headers())
 
     def __stop_external_bus(self):
         """
         Stop external bus
         """
-        self.logger.debug(u'Stop external bus')
+        self.logger.debug('Stop external bus')
         self.external_bus.stop()
 
     def get_network_devices(self):
@@ -164,19 +168,19 @@ class Cleepbus(RaspIotModule):
         Returns:
             dict: devices
         """
-        #TODO return list of online devices
+        # TODO return list of online devices
         return self.devices
 
-    def __on_message_received(self, message):
+    def _on_message_received(self, message):
         """
         Handle received message from external bus
 
         Args:
             message (ExternalBusMessage): external bus message instance
         """
-        self.logger.debug(u'Message received on external bus: %s' % message)
+        self.logger.debug('Message received on external bus: %s' % message)
 
-        #broadcast event to all modules
+        # broadcast event to all modules
         peer_infos = {
             'macs': message.peer_macs,
             'ip': message.peer_ip,
@@ -185,7 +189,7 @@ class Cleepbus(RaspIotModule):
         }
         self.send_external_event(message.event, message.params, peer_infos)
 
-    def __on_peer_connected(self, peer_id, infos):
+    def _on_peer_connected(self, peer_id, infos):
         """
         Device is connected
 
@@ -193,13 +197,13 @@ class Cleepbus(RaspIotModule):
             peer_id (string): peer identifier
             infos (dict): device informations (ip, port, ssl...)
         """
-        self.logger.debug(u'Peer %s connected: %s' % (peer_id, infos))
+        self.logger.debug('Peer %s connected: %s' % (peer_id, infos))
 
-    def __on_peer_disconnected(self, peer_id):
+    def _on_peer_disconnected(self, peer_id):
         """
         Device is disconnected
         """
-        self.logger.debug(u'Peer %s disconnected' % peer_id)
+        self.logger.debug('Peer %s disconnected' % peer_id)
 
     def event_received(self, event):
         """
@@ -208,28 +212,27 @@ class Cleepbus(RaspIotModule):
         Args:
             event (MessageRequest): event data
         """
-        #handle received event and transfer it to external buf if necessary
-        self.logger.debug(u'Received event %s' % event)
+        # handle received event and transfer it to external buf if necessary
+        self.logger.debug('Received event %s' % event)
 
-        #network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
-        if event[u'event']==u'network.status.up' and not self.external_bus.is_running():
-            #start external bus
+        # network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
+        if event['event'] == 'network.status.up' and not self.external_bus.is_running():
+            # start external bus
             self.__start_external_bus()
             return
 
-        elif event[u'event']==u'network.status.down' and self.external_bus.is_running():
-            #stop external bus
+        if event['event'] == 'network.status.down' and self.external_bus.is_running():
+            # stop external bus
+            self.logger.trace('Stop requested by network down event')
             self.__stop_external_bus()
             return
 
-        #drop startup events and system events that should stay localy
-        #if (u'startup' in event.keys() and not event[u'startup']) and not event[u'event'].startswith(u'system.') and not event[u'event'].startswith(u'network.') and not event[u'event'].startswith(u'gpios.'):
-        if (u'startup' in event.keys() and not event[u'startup']) and (u'core_event' in event.keys() and event[u'core_event']==False):
-            #broadcast non system events to external bus (based on EVENT_SYSTEM flag)
-            self.external_bus.broadcast_event(event[u'event'], event[u'params'], event[u'device_id'])
+        if ('startup' in event and not event['startup']) and ('core_event' in event and not event['core_event']):
+            # broadcast non system events to external bus (based on EVENT_SYSTEM flag)
+            self.external_bus.broadcast_event(event['event'], event['params'], event['device_id'])
 
         else:
-            #drop current event
-            self.logger.debug(u'Received event %s dropped' % event[u'event'])
+            # drop current event
+            self.logger.debug('Received event %s dropped' % event['event'])
 
 
