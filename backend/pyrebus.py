@@ -1,25 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from pyre_gevent import Pyre
-import zmq.green as zmq
 import json
 import logging
 import time
-from threading import Thread
 import uuid
 import binascii
 import os
-try:
-    from urlparse import urlparse
-except:
-    from urllib.parse import urlparse
-from pyre_gevent.zhelper import get_ifaddrs as zhelper_get_ifaddrs
-from pyre_gevent.zhelper import u
+import ipaddress
+from urllib.parse import urlparse
+from cleep.libs.internals.externalbus import ExternalBus, ExternalBusMessage
+from pyre_gevent import Pyre
+from pyre_gevent.zhelper import get_ifaddrs as zhelper_get_ifaddrs, u
+import zmq.green as zmq
 import netifaces
 import netaddr
-import ipaddress
-from cleep.libs.internals.externalbus import ExternalBus
 
 
 class PyreBus(ExternalBus):
@@ -36,7 +31,14 @@ class PyreBus(ExternalBus):
 
     POLL_TIMEOUT = 1000
 
-    def __init__(self, on_message_received, on_peer_connected, on_peer_disconnected, decode_bus_headers, debug_enabled, crash_report):
+    def __init__(self,
+                 on_message_received,
+                 on_peer_connected,
+                 on_peer_disconnected,
+                 decode_bus_headers,
+                 debug_enabled,
+                 crash_report
+                ):
         """
         Constructor
 
@@ -48,8 +50,8 @@ class PyreBus(ExternalBus):
             crash_report (CrashReport): crash report instance
         """
         ExternalBus.__init__(self, on_message_received, on_peer_connected, on_peer_disconnected, debug_enabled, crash_report)
-        
-        #bus logger
+
+        # bus logger
         pyre_logger = logging.getLogger('pyre')
         if debug_enabled:
             pyre_logger.setLevel(logging.DEBUG)
@@ -58,7 +60,7 @@ class PyreBus(ExternalBus):
         pyre_logger.addHandler(logging.StreamHandler())
         pyre_logger.propagate = False
 
-        #members
+        # members
         self.decode_bus_headers = decode_bus_headers
         self.__externalbus_configured = False
         self.node = None
@@ -82,15 +84,15 @@ class PyreBus(ExternalBus):
             # Loop over the interfaces and their settings to try to find the broadcast address.
             # ipv4 only currently and needs a valid broadcast address
             for name, data in iface.items():
-                self.logger.debug("Checking out interface {0}.".format(name))
+                self.logger.debug('Checking out interface "%s".' % name)
                 data_2 = data.get(netifaces.AF_INET)
                 data_17 = data.get(netifaces.AF_LINK)
 
                 if not data_2:
-                    self.logger.debug("No data_2 found for interface {0}.".format(name))
+                    self.logger.debug('No data_2 found for interface "%s".' % name)
                     continue
                 if not data_17:
-                    self.logger.debug("No data_17 found for interface {0}.".format(name))
+                    self.logger.debug('No data_17 found for interface "%s".' % name)
                     continue
 
                 address_str = data_2.get("addr")
@@ -98,7 +100,7 @@ class PyreBus(ExternalBus):
                 mac_str = data_17.get("addr")
 
                 if not address_str or not netmask_str:
-                    self.logger.debug("Address or netmask not found for interface {0}.".format(name))
+                    self.logger.debug('Address or netmask not found for interface "%s".' % name)
                     continue
 
                 if isinstance(address_str, bytes):
@@ -110,22 +112,22 @@ class PyreBus(ExternalBus):
                 if isinstance(mac_str, bytes):
                     mac_str = mac_str.decode("utf8")
 
-                #keep only private interface
+                # keep only private interface
                 ip_address = netaddr.IPAddress(address_str)
                 if ip_address and not ip_address.is_private():
-                    self.logger.debug("Interface {0} refers to public ip address, drop it.".format(name))
+                    self.logger.debug('Interface "%s" refers to public ip address, drop it.' % name)
                     continue
 
-                interface_string = "{0}/{1}".format(address_str, netmask_str)
+                interface_string = '%s/%s' % (address_str, netmask_str)
 
                 interface = ipaddress.ip_interface(u(interface_string))
 
                 if interface.is_loopback:
-                    self.logger.debug("Interface {0} is a loopback device.".format(name))
+                    self.logger.debug('Interface "%s" is a loopback device.' %  name)
                     continue
 
                 if interface.is_link_local:
-                    self.logger.debug("Interface {0} is a link-local device.".format(name))
+                    self.logger.debug('Interface "%s" is a link-local device.' % name)
                     continue
 
                 macs.append(mac_str)
@@ -136,13 +138,13 @@ class PyreBus(ExternalBus):
         """
         Stop bus
         """
-        #send stop message to unblock pyre task
+        # send stop message to unblock pyre task
         if self.pipe_in is not None:
             self.logger.debug('Send STOP on pipe')
             self.pipe_in.send(json.dumps(self.BUS_STOP).encode('utf-8'))
             time.sleep(0.15)
 
-            #and close everything
+            # and close everything
             self.pipe_in.close()
             self.pipe_in = None
 
@@ -153,7 +155,7 @@ class PyreBus(ExternalBus):
                 self.node.stop()
             except zmq.ZMQError:
                 pass
-            except:
+            except Exception:
                 self.logger.exception('Exception stopping pyre node')
             time.sleep(0.15)
             self.node = None
@@ -169,15 +171,15 @@ class PyreBus(ExternalBus):
         Args:
             headers (dict): list of header fields
         """
-        #check params
+        # check params
         if headers is None:
             raise Exception('Parameter "headers" is not specified')
 
-        #zmq context
+        # zmq context
         if self.context is None:
             self.context = zmq.Context()
 
-        #communication pipe
+        # communication pipe
         self.pipe_in = self.context.socket(zmq.PAIR)
         self.pipe_in.setsockopt(zmq.LINGER, 0)
         self.pipe_in.setsockopt(zmq.RCVHWM, 100)
@@ -196,17 +198,17 @@ class PyreBus(ExternalBus):
         self.pipe_in.bind(iface)
         self.pipe_out.connect(iface)
 
-        #create node
+        # create node
         self.node = Pyre(self.BUS_NAME)
         for header in headers:
             self.node.set_header(header, headers[header])
         self.node.join(self.BUS_GROUP)
         self.node.start()
 
-        #communication socket
+        # communication socket
         self.node_socket = self.node.socket()
 
-        #poller
+        # poller
         self.poller = zmq.Poller()
         self.poller.register(self.pipe_out, zmq.POLLIN)
         self.poller.register(self.node_socket, zmq.POLLIN)
@@ -214,6 +216,12 @@ class PyreBus(ExternalBus):
         self.__externalbus_configured = True
 
     def is_running(self):
+        """
+        Is pyrebus running
+
+        Returns:
+            bool: True if bus is running
+        """
         return self.__externalbus_configured
 
     def run_once(self):
@@ -224,114 +232,113 @@ class PyreBus(ExternalBus):
             bool: return True if bus still opened, False if bus stopped.
                   This is only useful when run_once is called by 'run' function
         """
-        #check configuration
+        # check configuration
         if not self.__externalbus_configured:
             self.logger.debug('External bus is not configured yet, maybe no netword connection')
             return False
 
         try:
-            #self.logger.debug('Polling...')
+            # self.logger.debug('Polling...')
             items = dict(self.poller.poll(self.POLL_TIMEOUT))
 
         except KeyboardInterrupt:
-            #stop requested by user
+            # stop requested by user
             self.logger.debug('Stop Pyre bus')
             self.node.stop()
             return False
 
-        except:
+        except Exception:
             self.logger.exception('Exception occured during externalbus polling:')
 
-        if self.pipe_out in items and items[self.pipe_out]==zmq.POLLIN:
-            #message to send
+        if self.pipe_out in items and items[self.pipe_out] == zmq.POLLIN:
+            # message to send
             data = self.pipe_out.recv()
             self.logger.debug('Raw data received on pipe: %s' % data)
             message = json.loads(data.decode('utf-8'))
 
-            #stop node
-            if message==self.BUS_STOP:
+            # stop node
+            if message == self.BUS_STOP:
                 self.logger.debug('Stop Pyre bus')
                 self.node.stop()
-                #return false to allow 'run' function to end infinite loop
+                # return false to allow 'run' function to end infinite loop
                 return False
 
-            #send message
+            # send message
             message = ExternalBusMessage(None, message)
             self.logger.debug('Send message: %s' % message.to_reduced_dict())
             if message.to is not None:
-                #whisper message
+                # whisper message
                 self.node.whisper(uuid.UUID(message.to), json.dumps(message.to_reduced_dict()).encode('utf-8'))
             else:
-                #shout message
+                # shout message
                 self.node.shout(self.BUS_GROUP, json.dumps(message.to_reduced_dict()).encode('utf-8'))
 
-        elif self.node_socket in items and items[self.node_socket]==zmq.POLLIN:
-            #message received
+        elif self.node_socket in items and items[self.node_socket] == zmq.POLLIN:
+            # message received
             data = self.node.recv()
             data_type = data.pop(0).decode('utf-8')
             data_peer = uuid.UUID(bytes=data.pop(0))
             data_name = data.pop(0).decode('utf-8')
             self.logger.debug('type=%s peer=%s name=%s' % (data_type, data_peer, data_name))
 
-            if data_type=='SHOUT' or data_type=='WHISPER':
-                #message received, decode it and trigger callback
+            if data_type in ('SHOUT', 'WHISPER'):
+                # message received, decode it and trigger callback
                 data_group = data.pop(0).decode('utf-8')
 
-                #check message group
-                if data_group!=self.BUS_GROUP:
-                    #invalid group?!?
-                    self.logger.error('Invalid message group received (%s instaead of %s)' % (data_group, self.BUS_GROUP))
+                # check message group
+                if data_group != self.BUS_GROUP:
+                    # invalid group?!?
+                    self.logger.error('Invalid message group received (%s instead of %s)' % (data_group, self.BUS_GROUP))
 
-                #trigger message received callback
+                # trigger message received callback
                 try:
                     data_content = data.pop(0)
                     self.logger.debug('Raw data received on bus: %s' % data_content)
                     message = json.loads(data_content.decode('utf-8'))
                     peer_infos = self.get_peer_infos(data_peer)
                     self.on_message_received(ExternalBusMessage(peer_infos, message))
-                except:
+                except Exception:
                     self.logger.exception('Unable to parse message:')
 
-            elif data_type=='ENTER':
-                #new peer connected
+            elif data_type == 'ENTER':
+                # new peer connected
                 self.logger.debug('New peer connected: peer=%s name=%s' % (data_peer, data_name))
-                if data_name==self.BUS_NAME:
-                    #get headers
+                if data_name == self.BUS_NAME:
+                    # get headers
                     headers = json.loads(data.pop(0).decode('utf-8'))
                     self.logger.debug('header=%s' % headers)
 
-                    #get peer ip
+                    # get peer ip
                     self.logger.debug('Peer endpoint: %s' % self.node.peer_address(data_peer))
                     peer_endpoint = urlparse(self.node.peer_address(data_peer))
 
-                    #add new peer
+                    # add new peer
                     try:
-                        #decode headers
+                        # decode headers
                         infos = self.decode_bus_headers(headers)
 
-                        #fill with some extra infos
+                        # fill with some extra infos
                         infos['id'] = str(data_peer)
                         infos['ip'] = peer_endpoint.hostname
 
-                        #save peer and trigger callback
+                        # save peer and trigger callback
                         self._add_peer(data_peer, infos)
                         self.on_peer_connected(str(data_peer), infos)
-                    except:
+                    except Exception:
                         self.logger.exception('Unable to add new peer:')
 
                 else:
-                    #invalid peer
+                    # invalid peer
                     self.logger.debug('Invalid peer connected: peer=%s name=%s' % (data_peer, data_name))
 
-            elif data_type=='EXIT':
-                #peer disconnected
+            elif data_type == 'EXIT':
+                # peer disconnected
                 self.logger.debug('Peer disconnected: peer=%s' % data_peer)
                 self._remove_peer(data_peer)
                 if self.on_peer_disconnected:
                     self.on_peer_disconnected(str(data_peer))
         else:
-            #timeout occured
-            #self.logger.debug(' polling timeout')
+            # timeout occured
             pass
 
         return True
@@ -344,25 +351,25 @@ class PyreBus(ExternalBus):
         while True:
             try:
                 if not self.__externalbus_configured:
-                    #bus not configured (no network yet?), pause
+                    # bus not configured (no network yet?), pause
                     time.sleep(0.25)
 
                 elif not self.run_once():
-                    #stop requested
+                    # stop requested
                     self.logger.debug('Stop requested programmatically')
                     break
 
             except KeyboardInterrupt:
-                #user stop
+                # user stop
                 self.logger.debug('Stop requested manually (CTRL-C)')
                 break
 
-            except:
+            except Exception:
                 self.logger.exception('Exception during external bus polling:')
                 continue
 
         self.logger.debug('Pyre node terminated')
-                
+
     def broadcast_event(self, event, params, device_id):
         """
         Broadcast event
@@ -372,13 +379,13 @@ class PyreBus(ExternalBus):
             params (dict): event parameters
             device_id (uuid): device identifier that emits event (device is not peer!)
         """
-        #prepare message
+        # prepare message
         message = ExternalBusMessage()
         message.event = event
         message.params = params
         message.device_id = device_id
 
-        #send message
+        # send message
         self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
 
     def send_event(self, event, params, device_id, peer_id):
@@ -391,24 +398,24 @@ class PyreBus(ExternalBus):
             device_id (uuid): device identifier that emits event (device is not peer!)
             peer_id (string): message recipient
         """
-        #check params
+        # check params
         if peer_id not in self.peers.keys():
             raise Exception('Invalid peer specified')
-        elif not self.__externalbus_configured:
+        if not self.__externalbus_configured:
             self.logger.debug('External bus is not configured yet, maybe no netword connection')
-            return False
+            return
 
-        #prepare message
+        # prepare message
         message = ExternalBusMessage()
         message.to = peer_id
         message.event = event
         message.params = params
         message.device_id = device_id
 
-        #send message
+        # send message
         self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
 
-
+"""
 if __name__ == '__main__':
    
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)s.%(funcName)s +%(lineno)s: %(levelname)-8s [%(process)d] %(message)s')
@@ -469,5 +476,5 @@ if __name__ == '__main__':
     t.stop()
 
     print('END')
-
+"""
 
