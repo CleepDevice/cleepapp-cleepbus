@@ -8,7 +8,7 @@ from cleep.core import CleepModule
 from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
 import cleep.libs.internals.tools as Tools
-from pyrebus import PyreBus
+from .pyrebus import PyreBus
 
 __all__ = ['Cleepbus']
 
@@ -50,11 +50,11 @@ class Cleepbus(CleepModule):
             self._on_message_received,
             self._on_peer_connected,
             self._on_peer_disconnected,
-            self._decode_bus_headers,
+            self._decode_bus_header,
             debug_enabled,
             self.crash_report
         )
-        self.devices = {}
+        self.peers = {}
         self.hostname = Hostname(self.cleep_filesystem)
         self.uuid = None
 
@@ -69,12 +69,31 @@ class Cleepbus(CleepModule):
             self.uuid = str(uuid.uuid4())
             self._set_config_field('uuid', self.uuid)
 
-    def get_bus_headers(self):
+    def get_bus_header(self):
         """
-        Headers to send at bus connection (values must be in string format)
+        Header to send at bus connection (values must be in string format)
 
-        Return:
-            dict: dict of headers (only string supported)
+        Returns:
+            dict: header values (only string supported)::
+
+            {
+                uuid (string): device uuid
+                version (string): installed Cleep version
+                hostname (string): device hostname
+                port (string): device http port
+                macs (string): list of mac addresses
+                ssl (string): '0' if ssl disabled, '1' otherwise
+                cleepdesktop (string): '1' if device is cleepdesktop, '0' otherwise
+                apps (string): list of installed applications
+                hwmodel (string): board model
+                pcbrevision (string): board pcb revision
+                hwmemory (string): board memory amount
+                hwaudio (string): '1' if audio on the board
+                hwethernet (string): '1' if ethernet on the board
+                hwwireless (string): '1' if wireless on the board
+                hwrevision (string): board revision
+            }
+
         """
         # get mac addresses
         macs = self.external_bus.get_mac_addresses()
@@ -100,7 +119,7 @@ class Cleepbus(CleepModule):
             'macs': json.dumps(macs),
             'ssl': '0',
             'cleepdesktop': '0',
-            'apps': ','.join(modules.keys()),
+            'apps': json.dumps(list(modules.keys())),
             'hwmodel': '%s' % hardware['model'],
             'pcbrevision': '%s' % hardware['pcbrevision'],
             'hwmemory': '%s' % hardware['memory'],
@@ -112,14 +131,14 @@ class Cleepbus(CleepModule):
 
         return headers
 
-    def _decode_bus_headers(self, headers):
+    def _decode_bus_header(self, headers):
         """
-        Decode bus headers fields
+        Decode bus header fields mutating input parameter
 
         Args:
             headers (dict): dict of values as returned by bus
 
-        Return:
+        Returns:
             dict: dict with parsed values
         """
         if 'port' in headers:
@@ -139,37 +158,46 @@ class Cleepbus(CleepModule):
         """
         # stop bus
         self.logger.trace('Stop module requested')
-        self.__stop_external_bus()
+        self._stop_external_bus()
 
-    def _custom_process(self):
+    def _on_process(self):
         """
         Custom process for cleep bus: get new message on external bus
         """
         if self.external_bus.is_running():
             self.external_bus.run_once()
 
-    def __start_external_bus(self):
+    def _start_external_bus(self):
         """
         Start external bus
         """
-        self.external_bus.start(self.get_bus_headers())
+        self.external_bus.start(self.get_bus_header())
 
-    def __stop_external_bus(self):
+    def _stop_external_bus(self):
         """
         Stop external bus
         """
         self.logger.debug('Stop external bus')
         self.external_bus.stop()
 
-    def get_network_devices(self):
+    def get_peers(self):
         """
-        Return all Cleep devices found on the network
+        Return all Cleep peers found on the network
 
         Returns:
-            dict: devices
+            dict: list of peers::
+
+            {
+                peer uuid (string): {
+                    bus header formatted fields
+                    online (bool): True if peer is online
+                    peer_id (string): peer id. Volatile, renewed after device connection
+                },
+                ...
+            }
+
         """
-        # TODO return list of online devices
-        return self.devices
+        return self.peers
 
     def _on_message_received(self, message):
         """
@@ -185,29 +213,48 @@ class Cleepbus(CleepModule):
             'macs': message.peer_macs,
             'ip': message.peer_ip,
             'hostname': message.peer_hostname,
-            'device_id': message.device_id
+            'device_id': message.device_id,
         }
         self.send_external_event(message.event, message.params, peer_infos)
 
-    def _on_peer_connected(self, peer_id, infos):
+    def _on_peer_connected(self, peer_id, header):
         """
         Device is connected
 
         Args:
             peer_id (string): peer identifier
-            infos (dict): device informations (ip, port, ssl...)
+            header (dict): device header informations (ip, port, ssl...)
         """
-        self.logger.debug('Peer %s connected: %s' % (peer_id, infos))
+        self.logger.debug('Peer %s connected: %s' % (peer_id, header))
+        self.peers[header['uuid']] = header
+        self.peers[header['uuid']]['peer_id'] = peer_id
+        self.peers[header['uuid']]['online'] = True
 
     def _on_peer_disconnected(self, peer_id):
         """
         Device is disconnected
         """
         self.logger.debug('Peer %s disconnected' % peer_id)
+        found = self._get_peer_infos_from_peer_id(peer_id)
+        if found:
+            found['online'] = False
+
+    def _get_peer_infos_from_peer_id(self, peer_id):
+        """
+        Search in peers dict for peer_id and returns its informations
+        
+        Args:
+            peer_id (string): peer identifier
+
+        Returns:
+            dict: peer informations or None
+        """
+        filtered = [peer for peer in self.peers.values() if peer['peer_id'] == peer_id]
+        return filtered[0] if len(filtered) > 0 else None
 
     def event_received(self, event):
         """
-        Automatically broadcast received events to external bus
+        Automatically broadcast received events from internal bus to external bus
 
         Args:
             event (MessageRequest): event data
@@ -218,17 +265,17 @@ class Cleepbus(CleepModule):
         # network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
         if event['event'] == 'network.status.up' and not self.external_bus.is_running():
             # start external bus
-            self.__start_external_bus()
+            self._start_external_bus()
             return
 
         if event['event'] == 'network.status.down' and self.external_bus.is_running():
             # stop external bus
             self.logger.trace('Stop requested by network down event')
-            self.__stop_external_bus()
+            self._stop_external_bus()
             return
 
         if ('startup' in event and not event['startup']) and ('core_event' in event and not event['core_event']):
-            # broadcast non system events to external bus (based on EVENT_SYSTEM flag)
+            # broadcast non core events to external bus (based on EVENT_CORE flag)
             self.external_bus.broadcast_event(event['event'], event['params'], event['device_id'])
 
         else:

@@ -315,15 +315,15 @@ class PyreBus(ExternalBus):
                     # add new peer
                     try:
                         # decode headers
-                        infos = self.decode_bus_headers(headers)
+                        header = self.decode_bus_headers(headers)
 
-                        # fill with some extra infos
-                        infos['id'] = str(data_peer)
-                        infos['ip'] = peer_endpoint.hostname
+                        # fill header with some extra infos
+                        header['id'] = str(data_peer)
+                        header['ip'] = peer_endpoint.hostname
 
                         # save peer and trigger callback
-                        self._add_peer(data_peer, infos)
-                        self.on_peer_connected(str(data_peer), infos)
+                        self._add_peer(data_peer, header)
+                        self.on_peer_connected(str(data_peer), header)
                     except Exception:
                         self.logger.exception('Unable to add new peer:')
 
