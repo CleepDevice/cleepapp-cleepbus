@@ -242,7 +242,7 @@ class Cleepbus(CleepModule):
     def _get_peer_infos_from_peer_id(self, peer_id):
         """
         Search in peers dict for peer_id and returns its informations
-        
+
         Args:
             peer_id (string): peer identifier
 

@@ -205,10 +205,12 @@ class TestCleepbus(unittest.TestCase):
 
     def test_start_external_bus(self):
         self.init_session()
+        mock_pyrebus.return_value.get_mac_addresses.return_value = ['00:00:00:00:00:00']
 
         self.module._start_external_bus()
 
         mock_pyrebus.return_value.start.assert_called()
+        mock_pyrebus.return_value.get_mac_addresses = Mock()
 
     def test_stop_external_bus(self):
         self.init_session()
