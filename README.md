@@ -4,7 +4,7 @@ Cleepbus allows Cleep devices to communicate each other.
 
 It is based on the great [0MQ](https://zeromq.org/) open source messaging library.
 
-## Why 0MQ ?
+## Why 0MQ ?
 
 Unlike other solutions that use MQTT solution for IoT communication, Cleep needs a network without a critical central point like the MQTT broker.
 
