@@ -285,7 +285,7 @@ class PyreBus(ExternalBus):
 
         # check message origin
         if data_name != self.__bus_name:
-            self.logger.trace('Peer connected from another bus: peer=%s bus=%s' % (data_peer, data_name))
+            self.logger.debug('Peer connected from another bus: peer=%s bus=%s' % (data_peer, data_name))
             return True
 
         if data_type in ('SHOUT', 'WHISPER'):
@@ -295,13 +295,13 @@ class PyreBus(ExternalBus):
             # check message group
             if data_group != self.__bus_channel:
                 # invalid group
-                self.logger.trace('Message received from another channel "%s" (current "%s")' % (data_group, self.__bus_channel))
+                self.logger.debug('Message received from another channel "%s" (current "%s")' % (data_group, self.__bus_channel))
                 return True
 
             # trigger message received callback
             try:
                 data_content = data.pop(0)
-                self.logger.info('Raw data received on bus: %s' % data_content)
+                self.logger.debug('Raw data received on bus: %s' % data_content)
                 raw_message = json.loads(data_content.decode('utf-8'))
                 message = MessageRequest()
                 message.fill_from_dict(raw_message)
@@ -423,6 +423,5 @@ class PyreBus(ExternalBus):
             return
 
         # send message
-        self.logger.debug('=====> %s' % self.pipe_in)
         self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
 
