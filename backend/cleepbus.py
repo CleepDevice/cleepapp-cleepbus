@@ -110,13 +110,9 @@ class Cleepbus(CleepExternalBus):
 
         # get installed modules
         modules = {}
-        try:
-            resp = self.send_command('get_modules', 'inventory', timeout=10.0)
-            if not resp['error']:
-                # modules = resp['data'] if resp['data'] else {}
-                modules = resp['data']
-        except Exception:
-            self.logger.exception('Error occured while getting installed modules')
+        resp = self.send_command('get_modules', 'inventory', timeout=10.0)
+        if not resp.error:
+            modules = resp.data
 
         # get device hardware infos
         hardware = Tools.raspberry_pi_infos()
