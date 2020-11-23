@@ -154,7 +154,7 @@ class PyreBus(ExternalBus):
             self.pipe_out = None
 
             try:
-                self.node.stop()
+                self.node and self.node.stop()
             except zmq.ZMQError: # pragma: no cover
                 pass
             except Exception:
@@ -338,6 +338,25 @@ class PyreBus(ExternalBus):
 
         return True
 
+    def _clean_message(self, message):
+        """
+        Clean message removing useless field for external messaging
+
+        Args:
+            message (MessageRequest): message request instance
+
+        Returns:
+            dict: cleaned message request
+        """
+        message_dict = message.to_dict()
+        message_dict.pop('sender', None)
+        message_dict.pop('startup', None)
+        message_dict.pop('device_id', None)
+        message_dict.pop('broadcast', None)
+        message_dict.pop('peer_infos', None)
+
+        return message_dict
+
     def _message_to_send_to_pipe(self):
         """
         Send message to outside
@@ -364,12 +383,15 @@ class PyreBus(ExternalBus):
         message = MessageRequest()
         message.fill_from_dict(raw_message)
         self.logger.debug('Send message: %s' % message)
+        cleaned_message = self._clean_message(message)
         if message.peer_infos and message.peer_infos.ident:
             # whisper message (to peer)
-            self.node.whisper(uuid.UUID(message.peer_infos.ident), json.dumps(message.to_dict()).encode('utf-8'))
+            self.logger.debug('Whisper message: %s' % cleaned_message)
+            self.node.whisper(uuid.UUID(message.peer_infos.ident), json.dumps(cleaned_message).encode('utf-8'))
         else:
             # shout message (broadcast)
-            self.node.shout(self.__bus_channel, json.dumps(message.to_dict()).encode('utf-8'))
+            self.logger.debug('Shout message: %s' % cleaned_message)
+            self.node.shout(self.__bus_channel, json.dumps(cleaned_message).encode('utf-8'))
 
         return True
 

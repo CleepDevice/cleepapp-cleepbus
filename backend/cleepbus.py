@@ -250,7 +250,7 @@ class Cleepbus(CleepExternalBus):
                 message.command,
                 message.to,
                 message.params,
-                (message.timeout - 2.0) if message.timeout and message.timeout >= 5.0 else 3.0
+                (message.timeout - 2.0) if message.timeout is not None and message.timeout >= 5.0 else 5.0
             )
             self.external_bus.send_command_response(message, response)
         else:
@@ -322,7 +322,7 @@ class Cleepbus(CleepExternalBus):
             self._stop_external_bus()
             return
 
-        if ('startup' in event and not event['startup']) and ('propagate' in event and event['propagate']):
+        if (not event['startup'] if 'startup' in event else True) and (event['propagate'] if 'propagate' in event else False):
             # broadcast events to external bus that are allowed to go outside of the device
             message = MessageRequest()
             message.event = event['event']
@@ -382,24 +382,4 @@ class Cleepbus(CleepExternalBus):
         message.timeout = timeout
 
         return self.external_bus.send_message(message)
-
-    def test_send_event(self): # pragma: no cover
-        message = MessageRequest()
-        message.event = 'cleepbus.event.test'
-        message.params = {
-            'param1': 'value1'
-        }
-        self.external_bus.send_message(message)
-
-    def test_send_command(self, peer_id): # pragma: no cover
-        message = MessageRequest()
-        message.command = 'cleepbus.command.test'
-        message.params = {
-            'param1': 'value1'
-        }
-        message.peer_infos = PeerInfos(
-            peer_uuid='585308c7-61fc-436c-8b32-6e1da3c5397d',
-            peer_id=peer_id
-        )
-        self.external_bus.send_message(message)
 

@@ -142,7 +142,7 @@ class TestCleepbus(unittest.TestCase):
         infos = self.module.get_peer_infos()
         logging.debug('Infos: %s' % infos)
 
-        self.assertDictEqual(infos, {
+        self.assertEqual(infos, {
             'ssl': '0',
             'hwmodel': self.GET_RASPBERRY_INFOS['model'],
             'macs': '["00:00:00:00:00:00"]',
@@ -352,7 +352,7 @@ class TestCleepbus(unittest.TestCase):
             'my_command',
             'dummy',
             {'param1': 'value1'},
-            3.0
+            5.0
         )
         self.assertFalse(self.module.send_event.called)
         mock_pyrebus.return_value.send_command_response.assert_called_with(msg, resp)
@@ -576,13 +576,13 @@ class TestCleepbus(unittest.TestCase):
 
         with self.assertRaises(InvalidParameter) as cm:
             self.module._send_command_to_peer('', 'dummy', peer_infos.uuid, {'param1': 'value1'})
-        self.assertEqual(str(cm.exception), 'Parameter "command" is invalid')
+        self.assertEqual(str(cm.exception), 'Parameter "command" is invalid (specified="")')
         with self.assertRaises(InvalidParameter) as cm:
             self.module._send_command_to_peer('my_command', '', peer_infos.uuid, {'param1': 'value1'})
-        self.assertEqual(str(cm.exception), 'Parameter "to" is invalid')
+        self.assertEqual(str(cm.exception), 'Parameter "to" is invalid (specified="")')
         with self.assertRaises(InvalidParameter) as cm:
             self.module._send_command_to_peer('my_command', 'dummy', '', {'param1': 'value1'})
-        self.assertEqual(str(cm.exception), 'Parameter "peer_uuid" is invalid')
+        self.assertEqual(str(cm.exception), 'Parameter "peer_uuid" is invalid (specified="")')
         with self.assertRaises(InvalidParameter) as cm:
             self.module._send_command_to_peer('my_command', 'dummy', '123-123-123', {'param1': 'value1'})
         self.assertEqual(str(cm.exception), 'Specified peer "123-123-123" does not exist')
@@ -591,6 +591,105 @@ class TestCleepbus(unittest.TestCase):
             self.module._send_command_to_peer('my_command', 'dummy', peer_infos.uuid, {'param1': 'value1'})
         self.assertEqual(str(cm.exception), 'Specified peer "%s" is not online' % peer_infos.uuid)
         peer_infos.online = True
+
+
+
+
+class TestFunctionnalCleepBus(unittest.TestCase):
+
+    GET_MODULES = {
+        'mod1': {},
+        'mod2': {},
+        'mod3': {},
+    }
+
+    def setUp(self):
+        self.session = session.TestSession(self)
+        logging.basicConfig(level=logging.FATAL, format=u'%(asctime)s %(name)s:%(lineno)d %(levelname)s : %(message)s')
+
+    def tearDown(self):
+        self.session.clean()
+
+    def init_session(self):
+        self.module = self.session.setup(Cleepbus)
+        self.module.get_peer_infos = Mock(return_value={
+            'uuid': '123-456-789',
+            'version': '0.0.0',
+            'hostname': 'test',
+            'port': '80',
+            'ssl': '1',
+            'cleepdesktop': '0',
+            'macs': '["00:00:00:00:00:00"]',
+        })
+
+        self.session.start_module(self.module)
+        self.session.add_mock_command(self.session.make_mock_command('get_modules', self.GET_MODULES))
+        self.module.event_received({
+            'event': 'network.status.up'
+        })
+
+    def test_send_event_to_peers(self):
+        self.init_session()
+        mock_whisper = Mock()
+        self.module.external_bus.node.whisper = mock_whisper
+        mock_shout = Mock()
+        self.module.external_bus.node.shout = mock_shout
+
+        self.module.event_received({
+            'event': 'my.dummy.event',
+            'params': {'param1': 'value1'},
+            'propagate': True,
+            'device_id': '123-456-789',
+        })
+
+        time.sleep(1.0)
+
+        mock_shout.assert_called()
+        call_args = mock_shout.call_args[0]
+        call_args_dict = json.loads(call_args[1].decode('utf8'))
+        logging.debug('Call args: %s' % call_args_dict)
+        self.assertDictEqual(call_args_dict, {
+            'event': 'my.dummy.event',
+            'params': {'param1': 'value1'}
+        })
+        self.assertFalse(mock_whisper.called)
+
+    def test_send_command_to_peer(self):
+        self.init_session()
+        mock_whisper = Mock()
+        self.module.external_bus.node.whisper = mock_whisper
+        mock_shout = Mock()
+        self.module.external_bus.node.shout = mock_shout
+
+        peer_uuid = '19038bd4-fa38-42a0-ae39-1460a65bf471'
+        peer_ident = '8bd91d82-3265-40d0-9417-f08c46468d25'
+        peer_infos = PeerInfos(uuid=peer_uuid, ident=peer_ident, ip='0.0.0.0', macs=['00:00:00:00:00:00'])
+        peer_infos.online = True
+        self.module.peers = {
+            peer_uuid: peer_infos,
+        }
+
+        self.module.send_command_to_peer(
+            command='acommand',
+            to='mod',
+            peer_uuid=peer_uuid,
+            params={'param': 'value'},
+        )
+
+        mock_whisper.assert_called_with(UUID(peer_ident), ANY)
+        call_args = mock_whisper.call_args[0]
+        call_args_dict = json.loads(call_args[1].decode('utf8'))
+        logging.debug('Call args: %s' % call_args_dict)
+        self.maxDiff = None
+        self.assertDictEqual(call_args_dict, {
+            'command': 'acommand',
+            'params': {'param': 'value'},
+            'command_uuid': ANY,
+            'to': 'mod',
+            'timeout': 5.0,
+        })
+        self.assertIsNotNone(call_args_dict['command_uuid'])
+        self.assertFalse(mock_shout.called)
 
 
 
@@ -666,7 +765,7 @@ class TestPyrebus(unittest.TestCase):
         self.online.clear()
         self.mock_crashreport.reset_mock()
 
-    def init_lib(self, debug=True):
+    def init_lib(self, debug=False):
         self.lib = PyreBus(
             self.on_message_received,
             self.on_peer_connected,
@@ -1148,11 +1247,8 @@ class TestPyrebus(unittest.TestCase):
             json.loads(call_args[1].decode('utf-8')),
             {
                 'to': message['to'],
-                'broadcast': ANY,
-                'sender': None,
                 'timeout': 5.0,
                 'params': message['params'],
-                'peer_infos': peer_infos.to_dict(),
                 'command': message['command'],
                 'command_uuid': None,
             }
@@ -1183,9 +1279,7 @@ class TestPyrebus(unittest.TestCase):
             json.loads(call_args[1].decode('utf-8')),
             {
                 'to': message['to'],
-                'broadcast': ANY,
                 'command': message['command'],
-                'sender': None,
                 'params': message['params'],
             }
         )
