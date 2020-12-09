@@ -23,7 +23,7 @@ mock_tools = Mock()
 @patch('backend.cleepbus.VERSION', '6.6.6')
 @patch('backend.cleepbus.PyreBus', mock_pyrebus)
 @patch('backend.cleepbus.Tools', mock_tools)
-class TestCleepbus(unittest.TestCase):
+class TestsCleepbus(unittest.TestCase):
 
     GET_MODULES = {
         'mod1': {},
@@ -355,7 +355,6 @@ class TestCleepbus(unittest.TestCase):
             5.0
         )
         self.assertFalse(self.module.send_event.called)
-        mock_pyrebus.return_value.send_command_response.assert_called_with(msg, resp)
 
     def test_on_message_received_from_unknown_peer(self):
         self.init_session()
@@ -470,13 +469,14 @@ class TestCleepbus(unittest.TestCase):
 
         self.assertTrue(self.module.peers[peer_infos.uuid].online)
 
-    def test_event_received(self):
+    def test_on_event(self):
         self.init_session()
 
-        self.module.event_received({
+        self.module.on_event({
             'startup': False,
             'event': 'my.dummy.event',
             'params': {'param1': 'value1'},
+            'sender': 'mod1',
             'propagate': True,
             'device_id': '123-456-789',
         })
@@ -490,10 +490,10 @@ class TestCleepbus(unittest.TestCase):
         self.assertEqual(call_args.args[0].peer_infos, None)
         self.assertEqual(call_args.args[0].to, None)
 
-    def test_event_received_drop_propagate(self):
+    def test_on_event_drop_propagate(self):
         self.init_session()
 
-        self.module.event_received({
+        self.module.on_event({
             'startup': False,
             'event': 'my.dummy.event',
             'params': {'param1': 'value1'},
@@ -503,12 +503,12 @@ class TestCleepbus(unittest.TestCase):
 
         self.assertFalse(mock_pyrebus.return_value.send_message.called)
 
-    def test_event_received_handle_network_up(self):
+    def test_on_event_handle_network_up(self):
         self.init_session()
         mock_pyrebus.return_value.is_running.return_value = False
         self.module._start_external_bus = Mock()
 
-        self.module.event_received({
+        self.module.on_event({
             'startup': False,
             'event': 'network.status.up',
             'params': {'param1': 'value1'},
@@ -520,12 +520,12 @@ class TestCleepbus(unittest.TestCase):
 
         mock_pyrebus.return_value.is_running = Mock()
 
-    def test_event_received_handle_network_down(self):
+    def test_on_event_handle_network_down(self):
         self.init_session()
         mock_pyrebus.return_value.is_running.return_value = True
         self.module._stop_external_bus = Mock()
 
-        self.module.event_received({
+        self.module.on_event({
             'startup': False,
             'event': 'network.status.down',
             'params': {'param1': 'value1'},
@@ -595,7 +595,7 @@ class TestCleepbus(unittest.TestCase):
 
 
 
-class TestFunctionnalCleepBus(unittest.TestCase):
+class TestsFunctionnalCleepbus(unittest.TestCase):
 
     GET_MODULES = {
         'mod1': {},
@@ -624,7 +624,7 @@ class TestFunctionnalCleepBus(unittest.TestCase):
 
         self.session.start_module(self.module)
         self.session.add_mock_command(self.session.make_mock_command('get_modules', self.GET_MODULES))
-        self.module.event_received({
+        self.module.on_event({
             'event': 'network.status.up'
         })
 
@@ -635,11 +635,12 @@ class TestFunctionnalCleepBus(unittest.TestCase):
         mock_shout = Mock()
         self.module.external_bus.node.shout = mock_shout
 
-        self.module.event_received({
+        self.module.on_event({
             'event': 'my.dummy.event',
             'params': {'param1': 'value1'},
             'propagate': True,
             'device_id': '123-456-789',
+            'sender': 'mod1',
         })
 
         time.sleep(1.0)
@@ -650,7 +651,10 @@ class TestFunctionnalCleepBus(unittest.TestCase):
         logging.debug('Call args: %s' % call_args_dict)
         self.assertDictEqual(call_args_dict, {
             'event': 'my.dummy.event',
-            'params': {'param1': 'value1'}
+            'params': {'param1': 'value1'},
+            'sender': 'mod1',
+            'to': None,
+            'device_id': None,
         })
         self.assertFalse(mock_whisper.called)
 
@@ -675,6 +679,7 @@ class TestFunctionnalCleepBus(unittest.TestCase):
             peer_uuid=peer_uuid,
             params={'param': 'value'},
         )
+        time.sleep(1.0)
 
         mock_whisper.assert_called_with(UUID(peer_ident), ANY)
         call_args = mock_whisper.call_args[0]
@@ -687,6 +692,7 @@ class TestFunctionnalCleepBus(unittest.TestCase):
             'command_uuid': ANY,
             'to': 'mod',
             'timeout': 5.0,
+            'sender': ANY,
         })
         self.assertIsNotNone(call_args_dict['command_uuid'])
         self.assertFalse(mock_shout.called)
@@ -695,7 +701,7 @@ class TestFunctionnalCleepBus(unittest.TestCase):
 
 
 
-class TestPyrebus(unittest.TestCase):
+class TestsPyrebus(unittest.TestCase):
 
     GET_IFADDRS = [
         {
@@ -1226,6 +1232,7 @@ class TestPyrebus(unittest.TestCase):
         message = {
             'command': 'my_command',
             'to': 'recipient',
+            'sender': 'mod1',
             'params': {
                 'param1': 'value1'
             },
@@ -1248,6 +1255,7 @@ class TestPyrebus(unittest.TestCase):
             {
                 'to': message['to'],
                 'timeout': 5.0,
+                'sender': 'mod1',
                 'params': message['params'],
                 'command': message['command'],
                 'command_uuid': None,
@@ -1259,6 +1267,7 @@ class TestPyrebus(unittest.TestCase):
         message = {
             'command': 'my_command',
             'to': 'recipient',
+            'sender': 'mod1',
             'params': {
                 'param1': 'value1'
             },
@@ -1281,6 +1290,7 @@ class TestPyrebus(unittest.TestCase):
                 'to': message['to'],
                 'command': message['command'],
                 'params': message['params'],
+                'sender': 'mod1',
             }
         )
 

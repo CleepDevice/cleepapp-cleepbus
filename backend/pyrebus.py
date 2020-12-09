@@ -349,9 +349,7 @@ class PyreBus(ExternalBus):
             dict: cleaned message request
         """
         message_dict = message.to_dict()
-        message_dict.pop('sender', None)
         message_dict.pop('startup', None)
-        message_dict.pop('device_id', None)
         message_dict.pop('broadcast', None)
         message_dict.pop('peer_infos', None)
 

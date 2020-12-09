@@ -234,6 +234,9 @@ class Cleepbus(CleepExternalBus):
         Args:
             peer_id (string): peer identifier
             message (MessageRequest): message from external bus
+
+        Returns:
+            MessageResponse if message is a command
         """
         self.logger.trace('Raw message received on external bus: %s' % message)
         # fill message with peer infos
@@ -246,13 +249,12 @@ class Cleepbus(CleepExternalBus):
 
         if message.is_command():
             # send command and return response
-            response = self.send_command(
+            return self.send_command(
                 message.command,
                 message.to,
                 message.params,
                 (message.timeout - 2.0) if message.timeout is not None and message.timeout >= 5.0 else 5.0
             )
-            self.external_bus.send_command_response(message, response)
         else:
             # send event
             self.send_event(message.event, message.params, to=message.to)
@@ -300,7 +302,7 @@ class Cleepbus(CleepExternalBus):
         filtered = [peer for peer in self.peers.values() if peer.ident == peer_id]
         return filtered[0] if len(filtered) > 0 else None
 
-    def event_received(self, event):
+    def on_event(self, event):
         """
         Automatically broadcast received events from internal bus to external bus
 
@@ -325,15 +327,16 @@ class Cleepbus(CleepExternalBus):
         if (not event['startup'] if 'startup' in event else True) and (event['propagate'] if 'propagate' in event else False):
             # broadcast events to external bus that are allowed to go outside of the device
             message = MessageRequest()
-            message.event = event['event']
-            message.params = event['params']
+            message.event = event.get('event')
+            message.params = event.get('params')
+            message.sender = event.get('sender')
             self.external_bus.send_message(message)
 
         else:
             # drop current event
             self.logger.debug('Received event %s dropped' % event['event'])
 
-    def _send_command_to_peer(self, command, to, peer_uuid, params=None, timeout=5.0):
+    def _send_command_to_peer(self, command, to, peer_uuid, params=None, timeout=5.0, manual_response=None):
         """
         Send command to specified peer
 
@@ -343,6 +346,7 @@ class Cleepbus(CleepExternalBus):
             peer_uuid (string): peer uuid to send command to
             params (dict): command parameters. Default None
             timeout (float): command timeout. Should be greater than 3.0 seconds. Default 5.0
+            manual_response (function): function to call to send command response
         """
         # check parameters
         self._check_parameters([
@@ -381,5 +385,5 @@ class Cleepbus(CleepExternalBus):
         message.peer_infos = self.peers[peer_uuid]
         message.timeout = timeout
 
-        return self.external_bus.send_message(message)
+        self.external_bus.send_message(message, timeout, manual_response)
 
