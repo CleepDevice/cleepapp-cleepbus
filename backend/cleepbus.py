@@ -18,7 +18,7 @@ class Cleepbus(CleepExternalBus):
     Cleepbus is the external bus to communicate with other Cleep devices
     """
     MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '1.1.1'
+    MODULE_VERSION = '2.0.0'
     MODULE_CATEGORY = 'APPLICATION'
     MODULE_PRICE = 0
     MODULE_DEPS = []
