@@ -592,6 +592,25 @@ class TestsCleepbus(unittest.TestCase):
         self.assertEqual(str(cm.exception), 'Specified peer "%s" is not online' % peer_infos.uuid)
         peer_infos.online = True
 
+    def test_send_event_to_peer(self):
+        self.init_session()
+        peer_infos = self.make_peer_infos()
+        peer_infos.online = True
+        self.module.peers = {
+            peer_infos.uuid: peer_infos,
+        }
+
+        self.module._send_event_to_peer('my_event', peer_infos.uuid, {'param1': 'value1'})
+
+        mock_pyrebus.return_value.send_message.assert_called()
+        msg = mock_pyrebus.return_value.send_message.call_args.args[0]
+        logging.debug('Msg: %s' % msg)
+        self.assertEqual(msg.event, 'my_event')
+        self.assertEqual(msg.to, None)
+        self.assertDictEqual(msg.params, {'param1': 'value1'})
+        self.assertDictEqual(msg.peer_infos.to_dict(), peer_infos.to_dict())
+        self.assertEqual(msg.timeout, None)
+
 
 
 
@@ -1382,6 +1401,8 @@ class TestsPyrebus(unittest.TestCase):
         self.lib._send_message(message)
 
         self.assertFalse(mock_pipein.send.called)
+
+
 
 if __name__ == "__main__":
     # coverage run --omit="*lib/python*/*","test_*" --concurrency=thread test_cleepbus.py; coverage report -m -i

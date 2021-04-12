@@ -9,6 +9,7 @@ from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
 from cleep.common import MessageRequest, PeerInfos
 import cleep.libs.internals.tools as Tools
+# pylint: disable=E0402
 from .pyrebus import PyreBus
 
 __all__ = ['Cleepbus']
@@ -18,7 +19,7 @@ class Cleepbus(CleepExternalBus):
     Cleepbus is the external bus to communicate with other Cleep devices
     """
     MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '2.0.0'
+    MODULE_VERSION = '2.0.1'
     MODULE_CATEGORY = 'APPLICATION'
     MODULE_PRICE = 0
     MODULE_DEPS = []
@@ -51,7 +52,7 @@ class Cleepbus(CleepExternalBus):
             self._on_message_received,
             self._on_peer_connected,
             self._on_peer_disconnected,
-            self._decode_peer_infos,
+            Cleepbus._decode_peer_infos,
             debug_enabled,
             self.crash_report
         )
@@ -136,7 +137,8 @@ class Cleepbus(CleepExternalBus):
             'hwrevision': hardware['revision'],
         }
 
-    def _decode_peer_infos(self, infos):
+    @staticmethod
+    def _decode_peer_infos(infos):
         """
         Decode peer infos
 
@@ -243,7 +245,7 @@ class Cleepbus(CleepExternalBus):
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
         if not peer_infos:
             self.logger.warning('Received message from unknown peer "%s", drop it: %s' % (peer_id, message))
-            return
+            return None
         message.peer_infos = peer_infos
         self.logger.debug('Message received on external bus: %s' % message)
 
@@ -255,9 +257,10 @@ class Cleepbus(CleepExternalBus):
                 message.params,
                 (message.timeout - 2.0) if message.timeout is not None and message.timeout >= 5.0 else 5.0
             )
-        else:
-            # send event
-            self.send_event(message.event, message.params, to=message.to)
+
+        # send event
+        self.send_event(message.event, message.params, to=message.to)
+        return None
 
     def _on_peer_connected(self, peer_id, peer_infos):
         """
@@ -386,4 +389,21 @@ class Cleepbus(CleepExternalBus):
         message.timeout = timeout
 
         self.external_bus.send_message(message, timeout, manual_response)
+
+    def _send_event_to_peer(self, event_name, peer_uuid, params=None):
+        """
+        Send event to specified peer through external bus implementation
+
+        Args:
+            event_name (string): event name
+            peer_uuid (string): peer uuid
+            params (dict): event parameters. Default None
+        """
+        # prepare message
+        message = MessageRequest()
+        message.event = event_name
+        message.params = params
+        message.peer_infos = self.peers[peer_uuid]
+
+        self.external_bus.send_message(message, peer_uuid, params=None)
 
