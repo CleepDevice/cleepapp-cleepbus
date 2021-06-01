@@ -19,7 +19,7 @@ class Cleepbus(CleepExternalBus):
     Cleepbus is the external bus to communicate with other Cleep devices
     """
     MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '2.0.1'
+    MODULE_VERSION = '2.0.2'
     MODULE_CATEGORY = 'APPLICATION'
     MODULE_PRICE = 0
     MODULE_DEPS = []
@@ -280,7 +280,7 @@ class Cleepbus(CleepExternalBus):
         # save new one
         peer_infos.online = True
         self.peers[peer_infos.uuid] = peer_infos
-        self.logger.debug('Peer %s connected: %s' % (peer_id, peer_infos))
+        self.logger.info('Peer %s connected: %s' % (peer_id, str(peer_infos)))
 
     def _on_peer_disconnected(self, peer_id):
         """
@@ -288,9 +288,11 @@ class Cleepbus(CleepExternalBus):
         """
         self.logger.debug('Peer %s disconnected' % peer_id)
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
-        self.logger.warning('Peer "%s" is unknown' % peer_id)
-        if peer_infos:
-            peer_infos.online = False
+        if not peer_infos:
+            self.logger.warning('Peer "%s" is unknown' % peer_id)
+            return
+
+        peer_infos.online = False
 
     def _get_peer_infos_from_peer_id(self, peer_id):
         """

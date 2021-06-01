@@ -10,7 +10,7 @@ import os
 import ipaddress
 from urllib.parse import urlparse
 from cleep.libs.internals.externalbus import ExternalBus
-from cleep.common import MessageRequest, MessageResponse
+from cleep.common import MessageRequest
 from pyre_gevent import Pyre
 from pyre_gevent.zhelper import get_ifaddrs as zhelper_get_ifaddrs, u
 import zmq.green as zmq
@@ -322,8 +322,8 @@ class PyreBus(ExternalBus):
                 # decode peer infos
                 peer_infos = self.decode_peer_infos(infos)
                 # add extras to peer infos
-                peer_infos.peer_id = str(data_peer)
-                peer_infos.peer_ip = peer_endpoint.hostname
+                peer_infos.ident = str(data_peer)
+                peer_infos.ip = peer_endpoint.hostname
                 # save peer and trigger callback
                 self.on_peer_connected(str(data_peer), peer_infos)
             except Exception:
@@ -338,7 +338,8 @@ class PyreBus(ExternalBus):
 
         return True
 
-    def _clean_message(self, message):
+    @staticmethod
+    def clean_message(message):
         """
         Clean message removing useless field for external messaging
 
@@ -381,7 +382,7 @@ class PyreBus(ExternalBus):
         message = MessageRequest()
         message.fill_from_dict(raw_message)
         self.logger.debug('Send message: %s' % message)
-        cleaned_message = self._clean_message(message)
+        cleaned_message = PyreBus.clean_message(message)
         if message.peer_infos and message.peer_infos.ident:
             # whisper message (to peer)
             self.logger.debug('Whisper message: %s' % cleaned_message)
