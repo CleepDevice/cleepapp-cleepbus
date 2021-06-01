@@ -1,5 +1,12 @@
 # Changelog
 
+## [UNRELEASED]
+
+* Fix build
+* Improve code quality
+* Fix issue: peer ident not correctly saved
+* Do not execute process on unknown peer
+
 ## v2.0.1 - 2021-04-12
 
 * Add postinst script
