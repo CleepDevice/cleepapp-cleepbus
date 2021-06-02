@@ -6,6 +6,8 @@
 * Improve code quality
 * Fix issue: peer ident not correctly saved
 * Do not execute process on unknown peer
+* Improve endpoint search reliability
+* Fix issue when receiving whisper message
 
 ## v2.0.1 - 2021-04-12
 
