@@ -70,6 +70,7 @@ class PyreBus(ExternalBus):
         self.pipe_out = None
         self.__bus_name = None
         self.__bus_channel = None
+        self.endpoint = None
 
     def get_mac_addresses(self):
         """
@@ -85,16 +86,19 @@ class PyreBus(ExternalBus):
             # Loop over the interfaces and their settings to try to find the broadcast address.
             # ipv4 only currently and needs a valid broadcast address
             for name, data in iface.items():
-                self.logger.debug('Checking out interface "%s".' % name)
+                self.logger.debug('Checking out interface "%s": %s' % (name, data))
                 data_2 = data.get(netifaces.AF_INET, None)
                 data_10 = data.get(netifaces.AF_INET6, None)
                 data_17 = data.get(netifaces.AF_LINK, None)
+                # workaround: fallback to netifaces module to find mac addr
+                if not data_17 and data_2:
+                    data_17 = self.__get_mac_addresses_from_netifaces(data_2)
 
                 if not data_2 and not data_10:
-                    self.logger.debug('Data_2 and data_10 not found for interface "%s".' % name)
+                    self.logger.debug('AF_INET(6) not found for interface "%s".' % name)
                     continue
                 if not data_17:
-                    self.logger.debug('No data_17 found for interface "%s".' % name)
+                    self.logger.debug('AF_LINK not found for interface "%s".' % name)
                     continue
 
                 address_str = (data_2 and data_2.get('addr', None)) or (data_10 and data_10.get('addr', None))
@@ -136,6 +140,30 @@ class PyreBus(ExternalBus):
 
         return macs
 
+    def __get_mac_addresses_from_netifaces(self, data_2):
+        """
+        Workaround to find mac addresses when not found using zhelper
+
+        Args:
+            data_2 (dict): AF_INET data
+
+        Returns:
+            dict: fake data_17 objects::
+
+            {
+                addr (string): mac address
+            }
+
+        """
+        adapter = data_2.get('adapter', None)
+        if not adapter:
+            return None
+
+        addresses = netifaces.ifaddresses(adapter)
+        mac_addr = addresses.get(-1000, None) # mac addr field under windows :S
+
+        return mac_addr[0] if mac_addr and len(mac_addr)>0 and mac_addr[0].get('addr', None) else None
+
     def stop(self):
         """
         Stop bus
@@ -157,6 +185,10 @@ class PyreBus(ExternalBus):
                 self.node and self.node.stop()
             except zmq.ZMQError: # pragma: no cover
                 pass
+            except AssertionError as error:
+                # this assertion occurs when cleep-desktop is stopping when pyrebus is not connected
+                if str(error) != 'Only one greenlet can be waiting on this event':
+                    self.logger.exception('Exception stopping pyre node')
             except Exception:
                 self.logger.exception('Exception stopping pyre node')
             time.sleep(0.15)
@@ -174,6 +206,9 @@ class PyreBus(ExternalBus):
             infos (dict): peer infos
             bus_name (string): bus name to create. Default CLEEP
             bus_channel (string): bus channel to join. Default CLEEP
+
+        Returns:
+            bool: True if successfully connected to pyrebus, False otherwise (connected to localhost)
         """
         # check params
         if not infos or not isinstance(infos, dict):
@@ -226,6 +261,11 @@ class PyreBus(ExternalBus):
         self.poller.register(self.node_socket, zmq.POLLIN)
 
         self.__externalbus_configured = True
+
+        # check endpoint
+        self.endpoint = self.node.endpoint()
+        self.logger.info('Connected to cleepbus endpoint "%s"' % self.endpoint)
+        return self.endpoint.find('127.0.0.1') == -1
 
     def is_running(self):
         """
@@ -290,21 +330,24 @@ class PyreBus(ExternalBus):
 
         if data_type in ('SHOUT', 'WHISPER'):
             # message received, decode it and trigger callback
-            data_group = data.pop(0).decode('utf-8')
+            if data_type == 'SHOUT':
+                # only SHOUT message holds channel
+                data_group = data.pop(0).decode('utf-8')
 
-            # check message group
-            if data_group != self.__bus_channel:
-                # invalid group
-                self.logger.debug('Message received from another channel "%s" (current "%s")' % (data_group, self.__bus_channel))
-                return True
+                # check message group
+                if data_group != self.__bus_channel:
+                    # invalid group
+                    self.logger.debug('Message received from another channel "%s" (current "%s")' % (data_group, self.__bus_channel))
+                    return True
 
             # trigger message received callback
             try:
-                data_content = data.pop(0)
+                data_content = data.pop(0).decode('utf-8')
                 self.logger.debug('Raw data received on bus: %s' % data_content)
-                raw_message = json.loads(data_content.decode('utf-8'))
+                raw_message = json.loads(data_content)
                 message = MessageRequest()
                 message.fill_from_dict(raw_message)
+                self.logger.debug('Message request received: %s' % str(message))
                 self.on_message_received(str(data_peer), message)
             except Exception:
                 self.logger.exception('Error parsing peer message:')
@@ -321,6 +364,7 @@ class PyreBus(ExternalBus):
             try:
                 # decode peer infos
                 peer_infos = self.decode_peer_infos(infos)
+                self.logger.debug('Peer infos: %s' % str(peer_infos))
                 # add extras to peer infos
                 peer_infos.ident = str(data_peer)
                 peer_infos.ip = peer_endpoint.hostname
