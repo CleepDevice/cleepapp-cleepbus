@@ -6,6 +6,7 @@
 * Do not execute process on unknown peer
 * Improve endpoint search reliability
 * Fix issue when receiving whisper message
+* Update pyzmq to 22.1.0 in postinst.sh to match with cleep 0.0.27
 
 ## v2.0.2 - 2021-04-13
 

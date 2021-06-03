@@ -554,7 +554,7 @@ class TestsCleepbus(unittest.TestCase):
         self.assertEqual(msg.to, 'dummy')
         self.assertDictEqual(msg.params, {'param1': 'value1'})
         self.assertDictEqual(msg.peer_infos.to_dict(), peer_infos.to_dict())
-        self.assertEqual(msg.timeout, 5.0)
+        self.assertEqual(msg.timeout, 8.0)
 
     def test_send_command_to_peer_check_parameters(self):
         self.init_session()
@@ -671,6 +671,7 @@ class TestsFunctionnalCleepbus(unittest.TestCase):
         self.assertDictEqual(call_args_dict, {
             'event': 'my.dummy.event',
             'params': {'param1': 'value1'},
+            'propagate': False,
             'sender': 'mod1',
             'to': None,
             'device_id': None,
@@ -799,6 +800,8 @@ class TestsPyrebus(unittest.TestCase):
             debug,
             self.mock_crashreport
         )
+        if not debug:
+            self.lib.logger.setLevel(logging.FATAL)
 
     def on_message_received(self, peer_id, message):
         self.messages.append({
@@ -1057,7 +1060,6 @@ class TestsPyrebus(unittest.TestCase):
             b'WHISPER',
             b'\x12\x34\x56\x78'*4,
             b'TESTBUS',
-            b'TESTCHANNEL',
             json.dumps(message).encode(),
         ]
         self.lib.node = mock_node
@@ -1145,7 +1147,7 @@ class TestsPyrebus(unittest.TestCase):
         self.assertEqual(len(self.messages), 0)
         self.assertEqual(len(self.peers), 0)
 
-    def test_message_to_receive_from_pipe_other_channel(self):
+    def test_message_to_receive_from_pipe_shout_other_channel(self):
         self.init_lib()
         self.lib._PyreBus__bus_name = 'TESTBUS'
         self.lib._PyreBus__bus_channel = 'TESTCHANNEL'
@@ -1157,7 +1159,7 @@ class TestsPyrebus(unittest.TestCase):
         }
         mock_node = Mock()
         mock_node.recv.return_value = [
-            b'WHISPER',
+            b'SHOUT',
             b'\x12\x34\x56\x78'*4,
             b'TESTBUS',
             b'OTHERCHANNEL',
@@ -1171,7 +1173,7 @@ class TestsPyrebus(unittest.TestCase):
         self.assertEqual(len(self.peers), 0)
         self.assertEqual(len(self.messages), 0)
 
-    def test_message_to_receive_from_pipe_on_message_exception(self):
+    def test_message_to_receive_from_pipe_shout_on_message_exception(self):
         self.init_lib()
         self.lib._PyreBus__bus_name = 'TESTBUS'
         self.lib._PyreBus__bus_channel = 'TESTCHANNEL'
@@ -1183,7 +1185,7 @@ class TestsPyrebus(unittest.TestCase):
         }
         mock_node = Mock()
         mock_node.recv.return_value = [
-            b'WHISPER',
+            b'SHOUT',
             b'\x12\x34\x56\x78'*4,
             b'TESTBUS',
             b'TESTCHANNEL',
