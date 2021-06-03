@@ -1,13 +1,16 @@
 # Changelog
 
-## v2.0.2 - 2021-06-03
+## v2.1.0 - 2021-06-03
 
-* Fix build
-* Improve code quality
 * Fix issue: peer ident not correctly saved
 * Do not execute process on unknown peer
 * Improve endpoint search reliability
 * Fix issue when receiving whisper message
+
+## v2.0.2 - 2021-04-13
+
+* Fix build
+* Improve code quality
 
 ## v2.0.1 - 2021-04-12
 
