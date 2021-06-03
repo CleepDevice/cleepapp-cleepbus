@@ -21,12 +21,10 @@ class Cleepbus(CleepExternalBus):
     MODULE_AUTHOR = 'Cleep'
     MODULE_VERSION = '2.0.2'
     MODULE_CATEGORY = 'APPLICATION'
-    MODULE_PRICE = 0
     MODULE_DEPS = []
     MODULE_DESCRIPTION = 'Enables communications between all your Cleep devices through your home network'
     MODULE_LONGDESCRIPTION = 'Application that enables communication between devices'
     MODULE_TAGS = ['bus', 'communication']
-    MODULE_COUNTRY = None
     MODULE_URLINFO = 'https://github.com/tangb/cleepmod-cleepbus/'
     MODULE_URLHELP = None
     MODULE_URLSITE = None
