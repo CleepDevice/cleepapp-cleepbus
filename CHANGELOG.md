@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## v2.0.2 - 2021-06-03
 
 * Fix build
 * Improve code quality
