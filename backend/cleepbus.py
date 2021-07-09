@@ -19,7 +19,7 @@ class Cleepbus(CleepExternalBus):
     Cleepbus is the external bus to communicate with other Cleep devices
     """
     MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '2.1.0'
+    MODULE_VERSION = '2.1.1'
     MODULE_CATEGORY = 'APPLICATION'
     MODULE_DEPS = []
     MODULE_DESCRIPTION = 'Enables communications between all your Cleep devices through your home network'
@@ -278,7 +278,7 @@ class Cleepbus(CleepExternalBus):
         # save new one
         peer_infos.online = True
         self.peers[peer_infos.uuid] = peer_infos
-        self.logger.info('Peer %s connected: %s' % (peer_id, str(peer_infos)))
+        self.logger.debug('Peer %s connected: %s' % (peer_id, str(peer_infos)))
 
     def _on_peer_disconnected(self, peer_id):
         """

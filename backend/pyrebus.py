@@ -484,7 +484,7 @@ class PyreBus(ExternalBus):
         """
         # check bus
         if not self.__externalbus_configured:
-            self.logger.warning('External bus is not configured yet, maybe no netword connection, message not sent')
+            self.logger.warning('External bus is not configured yet, maybe no network connection, message not sent: %s', message.to_dict())
             return
 
         # send message
