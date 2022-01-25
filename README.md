@@ -1,4 +1,4 @@
-# cleepmod-cleepbus [![Coverage Status](https://coveralls.io/repos/github/tangb/cleepmod-cleepbus/badge.svg?branch=master)](https://coveralls.io/github/tangb/cleepmod-cleepbus?branch=master)
+# cleepmod-cleepbus [![Coverage Status](https://coveralls.io/repos/github/tangb/cleepapp-cleepbus/badge.svg?branch=master)](https://coveralls.io/github/tangb/cleepapp-cleepbus?branch=master)
 
 Cleepbus allows Cleep devices to communicate each other.
 
