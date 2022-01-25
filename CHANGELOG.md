@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.2.0] - 2022-01-25
+### Changed
+- Remove useless python dependencies (mandatory in core)
+
 ## [2.1.1] - 2021-07-09
 ### Changed
 * Peer log message changed from info to debug
