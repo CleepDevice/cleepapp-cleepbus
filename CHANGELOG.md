@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.3] - 2023-02-12
+### Changed
+- Postinst pyzmq from prebuild version available on cleep-libs-prebuild repo
+
+## [2.2.2] - 2023-02-10
+### Changed
+- Install provided pyzmq library instead of pypi one
+
+## [2.2.1] - 2023-02-08
+### Changed
+- Update pyzmq dep to cleep-pyzmq for build optimization (pre build armhf bin)
+
 ## [2.2.0] - 2022-01-25
 ### Changed
 - Remove useless python dependencies (mandatory in core)
