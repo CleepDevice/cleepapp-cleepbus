@@ -26,18 +26,19 @@ class PyreBus(ExternalBus):
     This code is based on chat example (https://github.com/zeromq/pyre/blob/master/examples/chat.py)
     """
 
-    BUS_STOP = '$$STOP$$'
+    BUS_STOP = "$$STOP$$"
 
-    POLL_TIMEOUT = 500 # ms
+    POLL_TIMEOUT = 500  # ms
 
-    def __init__(self,
-                 on_message_received,
-                 on_peer_connected,
-                 on_peer_disconnected,
-                 decode_peer_infos,
-                 debug_enabled,
-                 crash_report
-                ):
+    def __init__(
+        self,
+        on_message_received,
+        on_peer_connected,
+        on_peer_disconnected,
+        decode_peer_infos,
+        debug_enabled,
+        crash_report,
+    ):
         """
         Constructor
 
@@ -48,10 +49,17 @@ class PyreBus(ExternalBus):
             debug_enabled (bool): True if debug is enabled
             crash_report (CrashReport): crash report instance
         """
-        ExternalBus.__init__(self, on_message_received, on_peer_connected, on_peer_disconnected, debug_enabled, crash_report)
+        ExternalBus.__init__(
+            self,
+            on_message_received,
+            on_peer_connected,
+            on_peer_disconnected,
+            debug_enabled,
+            crash_report,
+        )
 
         # bus logger
-        pyre_logger = logging.getLogger('pyre')
+        pyre_logger = logging.getLogger("pyre")
         if debug_enabled:
             pyre_logger.setLevel(logging.DEBUG)
         else:
@@ -86,61 +94,66 @@ class PyreBus(ExternalBus):
             # Loop over the interfaces and their settings to try to find the broadcast address.
             # ipv4 only currently and needs a valid broadcast address
             for name, data in iface.items():
-                self.logger.debug('Checking out interface "%s": %s' % (name, data))
+                self.logger.debug('Checking out interface "%s": %s', name, data)
                 data_2 = data.get(netifaces.AF_INET, None)
                 data_10 = data.get(netifaces.AF_INET6, None)
                 data_17 = data.get(netifaces.AF_LINK, None)
                 # workaround: fallback to netifaces module to find mac addr
                 if not data_17 and data_2:
-                    data_17 = self.__get_mac_addresses_from_netifaces(data_2)
+                    data_17 = PyreBus.get_mac_addresses_from_netifaces(data_2)
 
                 if not data_2 and not data_10:
-                    self.logger.debug('AF_INET(6) not found for interface "%s".' % name)
+                    self.logger.debug('AF_INET(6) not found for interface "%s".', name)
                     continue
                 if not data_17:
-                    self.logger.debug('AF_LINK not found for interface "%s".' % name)
+                    self.logger.debug('AF_LINK not found for interface "%s".', name)
                     continue
 
-                address_str = (data_2 and data_2.get('addr', None)) or (data_10 and data_10.get('addr', None))
-                netmask_str = (data_2 and data_2.get('netmask', None)) or (data_10 and data_10.get('netmask', None))
-                mac_str = data_17.get('addr', None)
+                address_str = (data_2 and data_2.get("addr", None)) or (
+                    data_10 and data_10.get("addr", None)
+                )
+                netmask_str = (data_2 and data_2.get("netmask", None)) or (
+                    data_10 and data_10.get("netmask", None)
+                )
+                mac_str = data_17.get("addr", None)
 
                 if not address_str or not netmask_str:
-                    self.logger.debug('Address or netmask not found for interface "%s".' % name)
+                    self.logger.debug('Address or netmask not found for interface "%s".', name)
                     continue
                 if not mac_str:
-                    self.logger.debug('Mac address not found for interface "%s".' % name)
+                    self.logger.debug('Mac address not found for interface "%s".', name)
                     continue
 
-                if isinstance(address_str, bytes): # pragma: no cover
-                    address_str = address_str.decode('utf8')
+                if isinstance(address_str, bytes):  # pragma: no cover
+                    address_str = address_str.decode("utf8")
 
-                if isinstance(netmask_str, bytes): # pragma: no cover
-                    netmask_str = netmask_str.decode('utf8')
+                if isinstance(netmask_str, bytes):  # pragma: no cover
+                    netmask_str = netmask_str.decode("utf8")
 
-                if isinstance(mac_str, bytes): # pragma: no cover
-                    mac_str = mac_str.decode('utf8')
+                if isinstance(mac_str, bytes):  # pragma: no cover
+                    mac_str = mac_str.decode("utf8")
 
                 # drop loopback and link interfaces
                 interface = ipaddress.ip_interface(u(address_str))
                 if interface.is_loopback:
-                    self.logger.debug('Interface "%s" is a loopback device, drop it.' %  name)
+                    self.logger.debug('Interface "%s" is a loopback device, drop it.', name)
                     continue
                 if interface.is_link_local:
-                    self.logger.debug('Interface "%s" is a link-local device, drop it.' % name)
+                    self.logger.debug('Interface "%s" is a link-local device, drop it.', name)
                     continue
 
                 # keep only private interface (not exposed to internet)
                 ip_address = netaddr.IPAddress(address_str)
                 if ip_address and not ip_address.is_private():
-                    self.logger.debug('Interface "%s" refers to public ip address, drop it.' % name)
+                    self.logger.debug('Interface "%s" refers to public ip address, drop it.', name)
                     continue
 
                 macs.append(mac_str)
 
         return macs
 
-    def __get_mac_addresses_from_netifaces(self, data_2):
+    @staticmethod
+    def get_mac_addresses_from_netifaces(data_2):
         """
         Workaround to find mac addresses when not found using zhelper
 
@@ -155,14 +168,18 @@ class PyreBus(ExternalBus):
             }
 
         """
-        adapter = data_2.get('adapter', None)
+        adapter = data_2.get("adapter", None)
         if not adapter:
             return None
 
         addresses = netifaces.ifaddresses(adapter)
-        mac_addr = addresses.get(-1000, None) # mac addr field under windows :S
+        mac_addr = addresses.get(-1000, None)  # mac addr field under windows :S
 
-        return mac_addr[0] if mac_addr and len(mac_addr)>0 and mac_addr[0].get('addr', None) else None
+        return (
+            mac_addr[0]
+            if mac_addr and len(mac_addr) > 0 and mac_addr[0].get("addr", None)
+            else None
+        )
 
     def stop(self):
         """
@@ -170,8 +187,8 @@ class PyreBus(ExternalBus):
         """
         # send stop message to unblock pyre task
         if self.pipe_in is not None:
-            self.logger.debug('Send STOP on pipe')
-            self.pipe_in.send(json.dumps(self.BUS_STOP).encode('utf-8'))
+            self.logger.debug("Send STOP on pipe")
+            self.pipe_in.send(json.dumps(self.BUS_STOP).encode("utf-8"))
             time.sleep(0.15)
 
             # and close everything
@@ -183,14 +200,14 @@ class PyreBus(ExternalBus):
 
             try:
                 self.node and self.node.stop()
-            except zmq.ZMQError: # pragma: no cover
+            except zmq.ZMQError:  # pragma: no cover
                 pass
             except AssertionError as error:
                 # this assertion occurs when cleep-desktop is stopping when pyrebus is not connected
-                if str(error) != 'Only one greenlet can be waiting on this event':
-                    self.logger.exception('Exception stopping pyre node')
+                if str(error) != "Only one greenlet can be waiting on this event":
+                    self.logger.exception("Exception stopping pyre node")
             except Exception:
-                self.logger.exception('Exception stopping pyre node')
+                self.logger.exception("Exception stopping pyre node")
             time.sleep(0.15)
             self.node = None
             self.node_socket = None
@@ -198,7 +215,7 @@ class PyreBus(ExternalBus):
 
             self.__externalbus_configured = False
 
-    def start(self, infos, bus_name='CLEEP', bus_channel='CLEEP'):
+    def start(self, infos, bus_name="CLEEP", bus_channel="CLEEP"):
         """
         Configure bus
 
@@ -241,7 +258,7 @@ class PyreBus(ExternalBus):
         self.pipe_out.setsockopt(zmq.SNDTIMEO, 5000)
         self.pipe_out.setsockopt(zmq.RCVTIMEO, 5000)
 
-        iface = 'inproc://%s' % binascii.hexlify(os.urandom(8))
+        iface = f"inproc://{binascii.hexlify(os.urandom(8))}"
         self.pipe_in.bind(iface)
         self.pipe_out.connect(iface)
 
@@ -264,8 +281,8 @@ class PyreBus(ExternalBus):
 
         # check endpoint
         self.endpoint = self.node.endpoint()
-        self.logger.info('Connected to cleepbus endpoint "%s"' % self.endpoint)
-        return self.endpoint.find('127.0.0.1') == -1
+        self.logger.info('Connected to cleepbus endpoint "%s"', self.endpoint)
+        return self.endpoint.find("127.0.0.1") == -1
 
     def is_running(self):
         """
@@ -286,7 +303,7 @@ class PyreBus(ExternalBus):
         """
         # check configuration
         if not self.__externalbus_configured:
-            self.logger.debug('External bus is not configured yet, maybe no netword connection')
+            self.logger.debug("External bus is not configured yet, maybe no netword connection")
             return False
 
         # poll external bus
@@ -295,11 +312,11 @@ class PyreBus(ExternalBus):
             items = dict(self.poller.poll(self.POLL_TIMEOUT))
         except KeyboardInterrupt:
             # stop requested by user
-            self.logger.debug('Stop Pyre bus')
+            self.logger.debug("Stop Pyre bus")
             self.node.stop()
             return False
         except Exception:
-            self.logger.exception('Exception occured during externalbus polling:')
+            self.logger.exception("Exception occured during externalbus polling:")
 
         # process received data
         if self.pipe_out in items and items[self.pipe_out] == zmq.POLLIN:
@@ -318,67 +335,67 @@ class PyreBus(ExternalBus):
             bool: True to continue, False to stop external bus
         """
         data = self.node.recv()
-        data_type = data.pop(0).decode('utf-8')
+        data_type = data.pop(0).decode("utf-8")
         data_peer = uuid.UUID(bytes=data.pop(0))
-        data_name = data.pop(0).decode('utf-8')
-        self.logger.trace('type=%s peer=%s name=%s' % (data_type, data_peer, data_name))
+        data_name = data.pop(0).decode("utf-8")
+        self.logger.trace("type=%s peer=%s name=%s", data_type, data_peer, data_name)
 
         # check message origin
         if data_name != self.__bus_name:
-            self.logger.debug('Peer connected from another bus: peer=%s bus=%s' % (data_peer, data_name))
+            self.logger.debug("Peer connected from another bus: peer=%s bus=%s", data_peer, data_name)
             return True
 
-        if data_type in ('SHOUT', 'WHISPER'):
+        if data_type in ("SHOUT", "WHISPER"):
             # message received, decode it and trigger callback
-            if data_type == 'SHOUT':
+            if data_type == "SHOUT":
                 # only SHOUT message holds channel
-                data_group = data.pop(0).decode('utf-8')
+                data_group = data.pop(0).decode("utf-8")
 
                 # check message group
                 if data_group != self.__bus_channel:
                     # invalid group
-                    self.logger.debug('Message received from another channel "%s" (current "%s")' % (data_group, self.__bus_channel))
+                    self.logger.debug('Message received from another channel "%s" (current "%s")', data_group, self.__bus_channel)
                     return True
 
             # trigger message received callback
             try:
-                data_content = data.pop(0).decode('utf-8')
-                self.logger.debug('Raw data received on bus: %s' % data_content)
+                data_content = data.pop(0).decode("utf-8")
+                self.logger.debug("Raw data received on bus: %s", data_content)
                 raw_message = json.loads(data_content)
                 message = MessageRequest()
                 message.fill_from_dict(raw_message)
-                self.logger.debug('Message request received: %s' % str(message))
+                self.logger.debug("Message request received: %s", str(message))
                 self.on_message_received(str(data_peer), message)
             except Exception:
-                self.logger.exception('Error parsing peer message:')
+                self.logger.exception("Error parsing peer message:")
 
-        elif data_type == 'ENTER':
+        elif data_type == "ENTER":
             # get message data
-            infos = json.loads(data.pop(0).decode('utf-8'))
-            self.logger.trace('Infos=%s' % infos)
+            infos = json.loads(data.pop(0).decode("utf-8"))
+            self.logger.trace("Infos=%s", infos)
             # get peer endpoint
-            self.logger.trace('Peer endpoint: %s' % self.node.peer_address(data_peer))
+            self.logger.trace("Peer endpoint: %s", self.node.peer_address(data_peer))
             peer_endpoint = urlparse(self.node.peer_address(data_peer))
 
             # add new peer
             try:
                 # decode peer infos
                 peer_infos = self.decode_peer_infos(infos)
-                self.logger.debug('Peer infos: %s' % str(peer_infos))
+                self.logger.debug("Peer infos: %s", str(peer_infos))
                 # add extras to peer infos
                 peer_infos.ident = str(data_peer)
                 peer_infos.ip = peer_endpoint.hostname
                 # save peer and trigger callback
                 self.on_peer_connected(str(data_peer), peer_infos)
             except Exception:
-                self.logger.exception('Error handling new peer connection')
+                self.logger.exception("Error handling new peer connection")
 
-        elif data_type == 'EXIT':
+        elif data_type == "EXIT":
             # peer disconnected
             try:
                 self.on_peer_disconnected(str(data_peer))
             except Exception:
-                self.logger.exception('Error handling peer disconnection')
+                self.logger.exception("Error handling peer disconnection")
 
         return True
 
@@ -394,9 +411,9 @@ class PyreBus(ExternalBus):
             dict: cleaned message request
         """
         message_dict = message.to_dict()
-        message_dict.pop('startup', None)
-        message_dict.pop('broadcast', None)
-        message_dict.pop('peer_infos', None)
+        message_dict.pop("startup", None)
+        message_dict.pop("broadcast", None)
+        message_dict.pop("peer_infos", None)
 
         return message_dict
 
@@ -410,31 +427,36 @@ class PyreBus(ExternalBus):
         # message to send
         try:
             data = self.pipe_out.recv()
-            self.logger.trace('Raw data received on pipe: %s' % data)
-            raw_message = json.loads(data.decode('utf-8'))
+            self.logger.trace("Raw data received on pipe: %s", data)
+            raw_message = json.loads(data.decode("utf-8"))
         except Exception:
-            self.logger.exception('Error handling message to send')
+            self.logger.exception("Error handling message to send")
             return True
 
         # stop node
         if raw_message == self.BUS_STOP:
-            self.logger.debug('Stop Pyre bus')
+            self.logger.debug("Stop Pyre bus")
             self.node.stop()
             return False
 
         # send message
         message = MessageRequest()
         message.fill_from_dict(raw_message)
-        self.logger.debug('Send message: %s' % message)
+        self.logger.debug("Send message: %s", message)
         cleaned_message = PyreBus.clean_message(message)
         if message.peer_infos and message.peer_infos.ident:
             # whisper message (to peer)
-            self.logger.debug('Whisper message: %s' % cleaned_message)
-            self.node.whisper(uuid.UUID(message.peer_infos.ident), json.dumps(cleaned_message).encode('utf-8'))
+            self.logger.debug("Whisper message: %s", cleaned_message)
+            self.node.whisper(
+                uuid.UUID(message.peer_infos.ident),
+                json.dumps(cleaned_message).encode("utf-8"),
+            )
         else:
             # shout message (broadcast)
-            self.logger.debug('Shout message: %s' % cleaned_message)
-            self.node.shout(self.__bus_channel, json.dumps(cleaned_message).encode('utf-8'))
+            self.logger.debug("Shout message: %s", cleaned_message)
+            self.node.shout(
+                self.__bus_channel, json.dumps(cleaned_message).encode("utf-8")
+            )
 
         return True
 
@@ -442,7 +464,7 @@ class PyreBus(ExternalBus):
         """
         Run pyre bus in infinite loop (blocking)
         """
-        self.logger.debug('Pyre node started')
+        self.logger.debug("Pyre node started")
         while True:
             try:
                 if not self.__externalbus_configured:
@@ -451,18 +473,18 @@ class PyreBus(ExternalBus):
 
                 elif not self.run_once():
                     # stop requested
-                    self.logger.debug('Stop requested programmatically')
+                    self.logger.debug("Stop requested programmatically")
                     break
 
-            except KeyboardInterrupt: # pragma: no cover
+            except KeyboardInterrupt:  # pragma: no cover
                 # user stop
-                self.logger.debug('Stop requested manually (CTRL-C)')
+                self.logger.debug("Stop requested manually (CTRL-C)")
                 break
 
             except Exception:
-                self.logger.exception('Exception during external bus process:')
+                self.logger.exception("Exception during external bus process:")
 
-        self.logger.debug('Pyre node terminated')
+        self.logger.debug("Pyre node terminated")
 
     def _broadcast_message(self, message):
         """
@@ -484,9 +506,11 @@ class PyreBus(ExternalBus):
         """
         # check bus
         if not self.__externalbus_configured:
-            self.logger.warning('External bus is not configured yet, maybe no network connection, message not sent: %s', message.to_dict())
+            self.logger.warning(
+                "External bus is not configured yet, maybe no network connection, message not sent: %s",
+                message.to_dict(),
+            )
             return
 
         # send message
-        self.pipe_in.send(json.dumps(message.to_dict()).encode('utf-8'))
-
+        self.pipe_in.send(json.dumps(message.to_dict()).encode("utf-8"))

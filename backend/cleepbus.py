@@ -9,31 +9,32 @@ from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
 from cleep.common import MessageRequest, PeerInfos
 import cleep.libs.internals.tools as Tools
+
 # pylint: disable=E0402
 from .pyrebus import PyreBus
 
-__all__ = ['Cleepbus']
+__all__ = ["Cleepbus"]
+
 
 class Cleepbus(CleepExternalBus):
     """
     Cleepbus is the external bus to communicate with other Cleep devices
     """
-    MODULE_AUTHOR = 'Cleep'
-    MODULE_VERSION = '2.2.3'
-    MODULE_CATEGORY = 'APPLICATION'
+
+    MODULE_AUTHOR = "Cleep"
+    MODULE_VERSION = "2.2.4"
+    MODULE_CATEGORY = "APPLICATION"
     MODULE_DEPS = []
-    MODULE_DESCRIPTION = 'Enables communications between all your Cleep devices through your home network'
-    MODULE_LONGDESCRIPTION = 'Application that enables communication between devices'
-    MODULE_TAGS = ['bus', 'communication']
-    MODULE_URLINFO = 'https://github.com/tangb/cleepmod-cleepbus/'
+    MODULE_DESCRIPTION = "Enables communications between all your Cleep devices through your home network"
+    MODULE_LONGDESCRIPTION = "Application that enables communication between devices"
+    MODULE_TAGS = ["bus", "communication"]
+    MODULE_URLINFO = "https://github.com/CleepDevice/cleepapp-cleepbus/"
     MODULE_URLHELP = None
     MODULE_URLSITE = None
-    MODULE_URLBUGS = 'https://github.com/tangb/cleepmod-cleepbus/issues'
+    MODULE_URLBUGS = "https://github.com/CleepDevice/cleepapp-cleepbus/issues"
 
-    MODULE_CONFIG_FILE = 'cleepbus.conf'
-    DEFAULT_CONFIG = {
-        'uuid': None
-    }
+    MODULE_CONFIG_FILE = "cleepbus.conf"
+    DEFAULT_CONFIG = {"uuid": None}
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -52,7 +53,7 @@ class Cleepbus(CleepExternalBus):
             self._on_peer_disconnected,
             Cleepbus._decode_peer_infos,
             debug_enabled,
-            self.crash_report
+            self.crash_report,
         )
         # peers list::
         #   {
@@ -72,11 +73,11 @@ class Cleepbus(CleepExternalBus):
         Configure module
         """
         # set device uuid if not setted yet
-        self.uuid = self._get_config_field('uuid')
+        self.uuid = self._get_config_field("uuid")
         if self.uuid is None:
-            self.logger.debug('Set device uuid')
+            self.logger.debug("Set device uuid")
             self.uuid = str(uuid.uuid4())
-            self._set_config_field('uuid', self.uuid)
+            self._set_config_field("uuid", self.uuid)
 
     def get_peer_infos(self):
         """
@@ -109,7 +110,7 @@ class Cleepbus(CleepExternalBus):
 
         # get installed modules
         modules = {}
-        resp = self.send_command('get_modules', 'inventory', timeout=10.0)
+        resp = self.send_command("get_modules", "inventory", timeout=10.0)
         if not resp.error:
             modules = resp.data
 
@@ -118,21 +119,21 @@ class Cleepbus(CleepExternalBus):
 
         # TODO handle here port and ssl when security implemented
         return {
-            'uuid': self.uuid,
-            'version': VERSION,
-            'hostname': self.hostname.get_hostname(),
-            'port': '80',
-            'macs': json.dumps(macs),
-            'ssl': '0',
-            'cleepdesktop': '0',
-            'apps': json.dumps(list(modules.keys())),
-            'hwmodel': '%s' % hardware['model'],
-            'pcbrevision': '%s' % hardware['pcbrevision'],
-            'hwmemory': '%s' % hardware['memory'],
-            'hwaudio': '1' if hardware['audio'] else '0',
-            'hwwireless': '1' if hardware['wireless'] else '0',
-            'hwethernet': '1' if hardware['ethernet'] else '0',
-            'hwrevision': hardware['revision'],
+            "uuid": self.uuid,
+            "version": VERSION,
+            "hostname": self.hostname.get_hostname(),
+            "port": "80",
+            "macs": json.dumps(macs),
+            "ssl": "0",
+            "cleepdesktop": "0",
+            "apps": json.dumps(list(modules.keys())),
+            "hwmodel": f"{hardware['model']}",
+            "pcbrevision": f"{hardware['pcbrevision']}",
+            "hwmemory": f"{hardware['memory']}",
+            "hwaudio": "1" if hardware["audio"] else "0",
+            "hwwireless": "1" if hardware["wireless"] else "0",
+            "hwethernet": "1" if hardware["ethernet"] else "0",
+            "hwrevision": f"{hardware['revision']}",
         }
 
     @staticmethod
@@ -149,16 +150,18 @@ class Cleepbus(CleepExternalBus):
             PeerInfos: peer informations
         """
         peer_infos = PeerInfos()
-        peer_infos.uuid = infos.get('uuid', None)
-        peer_infos.hostname = infos.get('hostname', None)
-        peer_infos.port = int(infos.get('port', peer_infos.port))
-        peer_infos.ssl = bool(strtobool(infos.get('ssl', '%s' % peer_infos.ssl)))
-        peer_infos.cleepdesktop = bool(strtobool(infos.get('cleepdesktop', '%s' % peer_infos.cleepdesktop)))
-        peer_infos.macs = json.loads(infos.get('macs', '[]'))
+        peer_infos.uuid = infos.get("uuid", None)
+        peer_infos.hostname = infos.get("hostname", None)
+        peer_infos.port = int(infos.get("port", peer_infos.port))
+        peer_infos.ssl = bool(strtobool(infos.get("ssl", f"{peer_infos.ssl}")))
+        peer_infos.cleepdesktop = bool(
+            strtobool(infos.get("cleepdesktop", f"{peer_infos.cleepdesktop}"))
+        )
+        peer_infos.macs = json.loads(infos.get("macs", "[]"))
         peer_infos.extra = {
             key: value
             for key, value in infos.items()
-            if key not in ['uuid', 'hostname', 'port', 'ssl', 'cleepdesktop', 'macs']
+            if key not in ["uuid", "hostname", "port", "ssl", "cleepdesktop", "macs"]
         }
 
         return peer_infos
@@ -168,7 +171,7 @@ class Cleepbus(CleepExternalBus):
         Stop module
         """
         # stop bus
-        self.logger.trace('Stop module requested')
+        self.logger.trace("Stop module requested")
         self._stop_external_bus()
 
     def _on_process(self):
@@ -188,7 +191,7 @@ class Cleepbus(CleepExternalBus):
         """
         Stop external bus
         """
-        self.logger.debug('Stop external bus')
+        self.logger.debug("Stop external bus")
         self.external_bus.stop()
 
     def _find_existing_peer(self, peer_infos):
@@ -225,7 +228,10 @@ class Cleepbus(CleepExternalBus):
             }
 
         """
-        return {peer_uuid: peer_infos.to_dict() for peer_uuid, peer_infos in self.peers.items()}
+        return {
+            peer_uuid: peer_infos.to_dict()
+            for peer_uuid, peer_infos in self.peers.items()
+        }
 
     def _on_message_received(self, peer_id, message):
         """
@@ -238,14 +244,16 @@ class Cleepbus(CleepExternalBus):
         Returns:
             MessageResponse if message is a command
         """
-        self.logger.trace('Raw message received on external bus: %s' % message)
+        self.logger.trace("Raw message received on external bus: %s", message)
         # fill message with peer infos
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
         if not peer_infos:
-            self.logger.warning('Received message from unknown peer "%s", drop it: %s' % (peer_id, message))
+            self.logger.warning(
+                'Received message from unknown peer "%s", drop it: %s', peer_id, message
+            )
             return None
         message.peer_infos = peer_infos
-        self.logger.debug('Message received on external bus: %s' % message)
+        self.logger.debug("Message received on external bus: %s", message)
 
         if message.is_command():
             # send command and return response
@@ -253,7 +261,9 @@ class Cleepbus(CleepExternalBus):
                 message.command,
                 message.to,
                 message.params,
-                (message.timeout - 2.0) if message.timeout is not None and message.timeout >= 5.0 else 5.0
+                (message.timeout - 2.0)
+                if message.timeout is not None and message.timeout >= 5.0
+                else 5.0,
             )
 
         # send event
@@ -278,16 +288,16 @@ class Cleepbus(CleepExternalBus):
         # save new one
         peer_infos.online = True
         self.peers[peer_infos.uuid] = peer_infos
-        self.logger.debug('Peer %s connected: %s' % (peer_id, str(peer_infos)))
+        self.logger.debug("Peer %s connected: %s", peer_id, str(peer_infos))
 
     def _on_peer_disconnected(self, peer_id):
         """
         Device is disconnected
         """
-        self.logger.debug('Peer %s disconnected' % peer_id)
+        self.logger.debug("Peer %s disconnected", peer_id)
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
         if not peer_infos:
-            self.logger.warning('Peer "%s" is unknown' % peer_id)
+            self.logger.warning('Peer "%s" is unknown', peer_id)
             return
 
         peer_infos.online = False
@@ -313,33 +323,37 @@ class Cleepbus(CleepExternalBus):
             event (MessageRequest): event data
         """
         # handle received event and transfer it to external buf if necessary
-        self.logger.debug('Received event %s' % event)
+        self.logger.debug("Received event %s", event)
 
         # network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
-        if event['event'] == 'network.status.up' and not self.external_bus.is_running():
+        if event["event"] == "network.status.up" and not self.external_bus.is_running():
             # start external bus
             self._start_external_bus()
             return
 
-        if event['event'] == 'network.status.down' and self.external_bus.is_running():
+        if event["event"] == "network.status.down" and self.external_bus.is_running():
             # stop external bus
-            self.logger.trace('Stop requested by network down event')
+            self.logger.trace("Stop requested by network down event")
             self._stop_external_bus()
             return
 
-        if (not event['startup'] if 'startup' in event else True) and (event['propagate'] if 'propagate' in event else False):
+        if (not event["startup"] if "startup" in event else True) and (
+            event["propagate"] if "propagate" in event else False
+        ):
             # broadcast events to external bus that are allowed to go outside of the device
             message = MessageRequest()
-            message.event = event.get('event')
-            message.params = event.get('params')
-            message.sender = event.get('sender')
+            message.event = event.get("event")
+            message.params = event.get("params")
+            message.sender = event.get("sender")
             self.external_bus.send_message(message)
 
         else:
             # drop current event
-            self.logger.debug('Received event %s dropped' % event['event'])
+            self.logger.debug("Received event %s dropped", event["event"])
 
-    def _send_command_to_peer(self, command, to, peer_uuid, params=None, timeout=8.0, manual_response=None):
+    def _send_command_to_peer(
+        self, command, to, peer_uuid, params=None, timeout=8.0, manual_response=None
+    ):
         """
         Send command to specified peer
 
@@ -352,33 +366,35 @@ class Cleepbus(CleepExternalBus):
             manual_response (function): function to call after command response was received
         """
         # check parameters
-        self._check_parameters([
-            {'name': 'command', 'type': str, 'value': command},
-            {'name': 'to', 'type': str, 'value': to},
-            {'name': 'peer_uuid', 'type': str, 'value': peer_uuid},
-            {
-                'name': 'peer_uuid',
-                'type': str,
-                'value': peer_uuid,
-                'validator': lambda val: val in self.peers,
-                'message': 'Specified peer "%s" does not exist' % peer_uuid
-            },
-            {
-                'name': 'peer_uuid',
-                'type': str,
-                'value': peer_uuid,
-                'validator': lambda val: self.peers[val].online,
-                'message': 'Specified peer "%s" is not online' % peer_uuid
-            },
-            {'name': 'params', 'type': dict, 'value': params, 'none': True},
-            {
-                'name': 'timeout',
-                'type': float,
-                'value': timeout,
-                'validator': lambda val: val > 3.0,
-                'message': 'Timeout must be greater than 3.0 seconds',
-            },
-        ])
+        self._check_parameters(
+            [
+                {"name": "command", "type": str, "value": command},
+                {"name": "to", "type": str, "value": to},
+                {"name": "peer_uuid", "type": str, "value": peer_uuid},
+                {
+                    "name": "peer_uuid",
+                    "type": str,
+                    "value": peer_uuid,
+                    "validator": lambda val: val in self.peers,
+                    "message": f'Specified peer "{peer_uuid}" does not exist',
+                },
+                {
+                    "name": "peer_uuid",
+                    "type": str,
+                    "value": peer_uuid,
+                    "validator": lambda val: self.peers[val].online,
+                    "message": f'Specified peer "{peer_uuid}" is not online',
+                },
+                {"name": "params", "type": dict, "value": params, "none": True},
+                {
+                    "name": "timeout",
+                    "type": float,
+                    "value": timeout,
+                    "validator": lambda val: val > 3.0,
+                    "message": "Timeout must be greater than 3.0 seconds",
+                },
+            ]
+        )
 
         # prepare message
         message = MessageRequest()
@@ -406,4 +422,3 @@ class Cleepbus(CleepExternalBus):
         message.peer_infos = self.peers[peer_uuid]
 
         self.external_bus.send_message(message, peer_uuid, params=None)
-

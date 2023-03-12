@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.2.4] - 2023-03-12
+### Changed
+- Improve code quality (lint+black)
+
 ## [2.2.3] - 2023-02-12
 ### Changed
 - Postinst pyzmq from prebuild version available on cleep-libs-prebuild repo
