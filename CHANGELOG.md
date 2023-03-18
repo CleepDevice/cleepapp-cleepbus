@@ -1,5 +1,12 @@
 # Changelog
 
+## [UNRELEASED]
+### Changed
+- Handle netifaces2 breaking changes
+
+### Added
+- Handle RPC config (https)
+
 ## [2.2.4] - 2023-03-12
 ### Changed
 - Improve code quality (lint+black)
