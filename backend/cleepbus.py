@@ -117,14 +117,13 @@ class Cleepbus(CleepExternalBus):
         # get device hardware infos
         hardware = Tools.raspberry_pi_infos()
 
-        # TODO handle here port and ssl when security implemented
         return {
             "uuid": self.uuid,
             "version": VERSION,
             "hostname": self.hostname.get_hostname(),
-            "port": "80",
+            "port": str(self.rpc_config.get("port")),
             "macs": json.dumps(macs),
-            "ssl": "0",
+            "ssl": "1" if self.rpc_config.get("ssl") else "0",
             "cleepdesktop": "0",
             "apps": json.dumps(list(modules.keys())),
             "hwmodel": f"{hardware['model']}",
