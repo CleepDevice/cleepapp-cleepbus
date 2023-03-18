@@ -60,10 +60,20 @@ class PyreBus(ExternalBus):
 
         # bus logger
         pyre_logger = logging.getLogger("pyre")
+        pyre_zbeacon_logger = logging.getLogger("pyre_gevent.zbeacon")
+        pyre_node_logger = logging.getLogger("pyre_gevent.pyre_node")
+        pyre_peer_logger = logging.getLogger("pyre_gevent.pyre_peer")
         if debug_enabled:
             pyre_logger.setLevel(logging.DEBUG)
+            pyre_zbeacon_logger.setLevel(logging.DEBUG)
+            pyre_node_logger.setLevel(logging.DEBUG)
+            pyre_peer_logger.setLevel(logging.DEBUG)
         else:
             pyre_logger.setLevel(logging.WARN)
+            pyre_zbeacon_logger.setLevel(logging.WARN)
+            pyre_node_logger.setLevel(logging.WARN)
+            pyre_peer_logger.setLevel(logging.DEBUG)
+
         pyre_logger.addHandler(logging.StreamHandler())
         pyre_logger.propagate = False
 
@@ -97,7 +107,7 @@ class PyreBus(ExternalBus):
                 self.logger.debug('Checking out interface "%s": %s', name, data)
                 data_2 = data.get(netifaces.AF_INET, None)
                 data_10 = data.get(netifaces.AF_INET6, None)
-                data_17 = data.get(netifaces.AF_LINK, None)
+                data_17 = data.get(netifaces.AF_PACKET, None)
                 # workaround: fallback to netifaces module to find mac addr
                 if not data_17 and data_2:
                     data_17 = PyreBus.get_mac_addresses_from_netifaces(data_2)
@@ -106,7 +116,7 @@ class PyreBus(ExternalBus):
                     self.logger.debug('AF_INET(6) not found for interface "%s".', name)
                     continue
                 if not data_17:
-                    self.logger.debug('AF_LINK not found for interface "%s".', name)
+                    self.logger.debug('AF_PACKET(17) not found for interface "%s".', name)
                     continue
 
                 address_str = (data_2 and data_2.get("addr", None)) or (
@@ -173,7 +183,7 @@ class PyreBus(ExternalBus):
             return None
 
         addresses = netifaces.ifaddresses(adapter)
-        mac_addr = addresses.get(-1000, None)  # mac addr field under windows :S
+        mac_addr = addresses.get(netifaces.AF_LINK, None)
 
         return (
             mac_addr[0]
