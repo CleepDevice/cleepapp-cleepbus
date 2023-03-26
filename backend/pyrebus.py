@@ -116,7 +116,9 @@ class PyreBus(ExternalBus):
                     self.logger.debug('AF_INET(6) not found for interface "%s".', name)
                     continue
                 if not data_17:
-                    self.logger.debug('AF_PACKET(17) not found for interface "%s".', name)
+                    self.logger.debug(
+                        'AF_PACKET(17) not found for interface "%s".', name
+                    )
                     continue
 
                 address_str = (data_2 and data_2.get("addr", None)) or (
@@ -128,7 +130,9 @@ class PyreBus(ExternalBus):
                 mac_str = data_17.get("addr", None)
 
                 if not address_str or not netmask_str:
-                    self.logger.debug('Address or netmask not found for interface "%s".', name)
+                    self.logger.debug(
+                        'Address or netmask not found for interface "%s".', name
+                    )
                     continue
                 if not mac_str:
                     self.logger.debug('Mac address not found for interface "%s".', name)
@@ -146,16 +150,22 @@ class PyreBus(ExternalBus):
                 # drop loopback and link interfaces
                 interface = ipaddress.ip_interface(u(address_str))
                 if interface.is_loopback:
-                    self.logger.debug('Interface "%s" is a loopback device, drop it.', name)
+                    self.logger.debug(
+                        'Interface "%s" is a loopback device, drop it.', name
+                    )
                     continue
                 if interface.is_link_local:
-                    self.logger.debug('Interface "%s" is a link-local device, drop it.', name)
+                    self.logger.debug(
+                        'Interface "%s" is a link-local device, drop it.', name
+                    )
                     continue
 
                 # keep only private interface (not exposed to internet)
                 ip_address = netaddr.IPAddress(address_str)
                 if ip_address and not ip_address.is_private():
-                    self.logger.debug('Interface "%s" refers to public ip address, drop it.', name)
+                    self.logger.debug(
+                        'Interface "%s" refers to public ip address, drop it.', name
+                    )
                     continue
 
                 macs.append(mac_str)
@@ -313,7 +323,9 @@ class PyreBus(ExternalBus):
         """
         # check configuration
         if not self.__externalbus_configured:
-            self.logger.debug("External bus is not configured yet, maybe no netword connection")
+            self.logger.debug(
+                "External bus is not configured yet, maybe no netword connection"
+            )
             return False
 
         # poll external bus
@@ -352,7 +364,9 @@ class PyreBus(ExternalBus):
 
         # check message origin
         if data_name != self.__bus_name:
-            self.logger.debug("Peer connected from another bus: peer=%s bus=%s", data_peer, data_name)
+            self.logger.debug(
+                "Peer connected from another bus: peer=%s bus=%s", data_peer, data_name
+            )
             return True
 
         if data_type in ("SHOUT", "WHISPER"):
@@ -364,7 +378,11 @@ class PyreBus(ExternalBus):
                 # check message group
                 if data_group != self.__bus_channel:
                     # invalid group
-                    self.logger.debug('Message received from another channel "%s" (current "%s")', data_group, self.__bus_channel)
+                    self.logger.debug(
+                        'Message received from another channel "%s" (current "%s")',
+                        data_group,
+                        self.__bus_channel,
+                    )
                     return True
 
             # trigger message received callback

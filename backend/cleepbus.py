@@ -92,15 +92,16 @@ class Cleepbus(CleepExternalBus):
                 hostname (string): device hostname
                 port (string): device http port
                 macs (string): list of mac addresses
-                ssl (string): '0' if ssl disabled, '1' otherwise
-                cleepdesktop (string): '1' if device is cleepdesktop, '0' otherwise
+                ssl (string): "0" if ssl disabled, "1" otherwise
+                auth (str): "0" if auth enabled, "1" otherwise
+                cleepdesktop (string): "1" if device is cleepdesktop, "0" otherwise
                 apps (string): list of installed applications
                 hwmodel (string): board model
                 pcbrevision (string): board pcb revision
                 hwmemory (string): board memory amount
-                hwaudio (string): '1' if audio on the board
-                hwethernet (string): '1' if ethernet on the board
-                hwwireless (string): '1' if wireless on the board
+                hwaudio (string): "1" if audio on the board
+                hwethernet (string): "1" if ethernet on the board
+                hwwireless (string): "1" if wireless on the board
                 hwrevision (string): board revision
             }
 
@@ -122,10 +123,11 @@ class Cleepbus(CleepExternalBus):
             "version": VERSION,
             "hostname": self.hostname.get_hostname(),
             "port": str(self.rpc_config.get("port")),
-            "macs": json.dumps(macs),
             "ssl": "1" if self.rpc_config.get("ssl") else "0",
+            "auth": "1" if self.rpc_config.get("auth") else "0",
             "cleepdesktop": "0",
             "apps": json.dumps(list(modules.keys())),
+            "macs": json.dumps(macs),
             "hwmodel": f"{hardware['model']}",
             "pcbrevision": f"{hardware['pcbrevision']}",
             "hwmemory": f"{hardware['memory']}",

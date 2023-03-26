@@ -6,6 +6,7 @@
 
 ### Added
 - Handle RPC config (https)
+- Handle auth
 
 ## [2.2.4] - 2023-03-12
 ### Changed
