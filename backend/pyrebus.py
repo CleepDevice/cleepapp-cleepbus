@@ -162,7 +162,14 @@ class PyreBus(ExternalBus):
 
                 # keep only private interface (not exposed to internet)
                 ip_address = netaddr.IPAddress(address_str)
-                if ip_address and not ip_address.is_private():
+                if not ip_address:
+                    continue
+                # handle netaddr breaking changes
+                if netaddr.__version__.startswith('0.'):
+                    ip_is_private = ip_address.is_private()
+                else:
+                    ip_is_private = ip_address.is_ipv4_private_use() or ip_address.is_ipv6_unique_local()
+                if not ip_is_private:
                     self.logger.debug(
                         'Interface "%s" refers to public ip address, drop it.', name
                     )

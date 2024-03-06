@@ -172,6 +172,7 @@ class TestsCleepbus(unittest.TestCase):
                 "hostname": "testhostname",
                 "uuid": self.module.uuid,
                 "cleepdesktop": "0",
+                "auth": "0",
             },
         )
 
@@ -203,6 +204,7 @@ class TestsCleepbus(unittest.TestCase):
                 "hostname": "testhostname",
                 "uuid": self.module.uuid,
                 "cleepdesktop": "0",
+                "auth": "0",
             },
         )
 

@@ -122,7 +122,7 @@ class Cleepbus(CleepExternalBus):
             "uuid": self.uuid,
             "version": VERSION,
             "hostname": self.hostname.get_hostname(),
-            "port": str(self.rpc_config.get("port")),
+            "port": str(self.rpc_config.get("port", 80)),
             "ssl": "1" if self.rpc_config.get("ssl") else "0",
             "auth": "1" if self.rpc_config.get("auth") else "0",
             "cleepdesktop": "0",
