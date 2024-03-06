@@ -18,7 +18,7 @@ from cleep.libs.tests import session, lib
 import os
 import time
 from uuid import UUID
-from mock import Mock, patch, ANY
+from unittest.mock import Mock, patch, ANY
 from threading import Timer
 
 mock_hostname = Mock()
@@ -66,7 +66,7 @@ class TestsCleepbus(unittest.TestCase):
         mock_pyrebus.reset_mock()
 
     def init_session(self, start_module=True):
-        self.module = self.session.setup(Cleepbus)
+        self.module = self.session.setup(Cleepbus, mock_on_start=False, mock_on_stop=False)
         if start_module:
             self.session.start_module(self.module)
             self.session.add_mock_command(
@@ -706,7 +706,7 @@ class TestsFunctionnalCleepbus(unittest.TestCase):
         self.session.clean()
 
     def init_session(self):
-        self.module = self.session.setup(Cleepbus)
+        self.module = self.session.setup(Cleepbus, mock_on_start=False, mock_on_stop=False)
         self.module.get_peer_infos = Mock(
             return_value={
                 "uuid": "123-456-789",
