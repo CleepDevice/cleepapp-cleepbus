@@ -3,7 +3,7 @@
 
 import json
 import uuid
-from distutils.util import strtobool
+from str2bool import str2bool
 from cleep.core import CleepExternalBus
 from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
@@ -154,9 +154,9 @@ class Cleepbus(CleepExternalBus):
         peer_infos.uuid = infos.get("uuid", None)
         peer_infos.hostname = infos.get("hostname", None)
         peer_infos.port = int(infos.get("port", peer_infos.port))
-        peer_infos.ssl = bool(strtobool(infos.get("ssl", f"{peer_infos.ssl}")))
+        peer_infos.ssl = bool(str2bool(infos.get("ssl", f"{peer_infos.ssl}")))
         peer_infos.cleepdesktop = bool(
-            strtobool(infos.get("cleepdesktop", f"{peer_infos.cleepdesktop}"))
+            str2bool(infos.get("cleepdesktop", f"{peer_infos.cleepdesktop}"))
         )
         peer_infos.macs = json.loads(infos.get("macs", "[]"))
         peer_infos.extra = {
