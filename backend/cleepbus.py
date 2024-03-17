@@ -22,7 +22,7 @@ class Cleepbus(CleepExternalBus):
     """
 
     MODULE_AUTHOR = "Cleep"
-    MODULE_VERSION = "2.2.4"
+    MODULE_VERSION = "2.3.0"
     MODULE_CATEGORY = "APPLICATION"
     MODULE_DEPS = []
     MODULE_DESCRIPTION = "Enables communications between all your Cleep devices through your home network"

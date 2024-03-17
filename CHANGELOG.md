@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.3.0] - 2024-03-17
 ### Changed
 - Handle netifaces2 breaking changes
 
