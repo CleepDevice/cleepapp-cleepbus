@@ -422,4 +422,4 @@ class Cleepbus(CleepExternalBus):
         message.params = params
         message.peer_infos = self.peers[peer_uuid]
 
-        self.external_bus.send_message(message, peer_uuid, params=None)
+        self.external_bus.send_message(message)
