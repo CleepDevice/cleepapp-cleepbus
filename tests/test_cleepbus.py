@@ -1,9 +1,9 @@
+from cleep.libs.tests import session, lib
 import unittest
 import logging
 import sys
 import json
 import copy
-
 sys.path.append("../")
 from backend.cleepbus import Cleepbus
 from backend.pyrebus import PyreBus
@@ -14,7 +14,6 @@ from cleep.exception import (
     Unauthorized,
 )
 from cleep.common import PeerInfos, MessageRequest
-from cleep.libs.tests import session, lib
 import os
 import time
 from uuid import UUID
@@ -1557,5 +1556,5 @@ class TestsPyrebus(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # coverage run --omit="*lib/python*/*","test_*" --concurrency=thread test_cleepbus.py; coverage report -m -i
+    # coverage run --include="**/backend/**/*.py" --concurrency=thread test_cleepbus.py; coverage report -m -i
     unittest.main()
