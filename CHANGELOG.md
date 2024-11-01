@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.1] - 2024-11-01
+
+### Changed
+- Update pyre-gevent lib to 0.3.1
+
 ## [2.3.0] - 2024-03-17
 ### Changed
 - Handle netifaces2 breaking changes
