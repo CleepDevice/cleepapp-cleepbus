@@ -72,7 +72,7 @@ class PyreBus(ExternalBus):
             pyre_logger.setLevel(logging.WARN)
             pyre_zbeacon_logger.setLevel(logging.WARN)
             pyre_node_logger.setLevel(logging.WARN)
-            pyre_peer_logger.setLevel(logging.DEBUG)
+            pyre_peer_logger.setLevel(logging.WARN)
 
         pyre_logger.addHandler(logging.StreamHandler())
         pyre_logger.propagate = False
