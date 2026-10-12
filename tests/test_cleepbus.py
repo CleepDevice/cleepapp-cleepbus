@@ -63,6 +63,9 @@ class TestsCleepbus(unittest.TestCase):
         self.session.clean()
         mock_hostname.reset_mock()
         mock_pyrebus.reset_mock()
+        mock_pyrebus.return_value.is_running.side_effect = None
+        mock_pyrebus.return_value.run_once.side_effect = None
+        mock_pyrebus.return_value.endpoint = None
 
     def init_session(self, start_module=True):
         self.module = self.session.setup(Cleepbus, mock_on_start=False, mock_on_stop=False)
@@ -606,9 +609,67 @@ class TestsCleepbus(unittest.TestCase):
             }
         )
 
-        self.module._stop_external_bus.assert_called()
+        self.module._stop_external_bus.assert_called_with(clear_restart=True)
 
         mock_pyrebus.return_value.is_running = Mock()
+
+    def test_on_event_handle_network_update_ip_changed(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.return_value = True
+        mock_pyrebus.return_value.endpoint = "tcp://192.168.1.10:5670"
+        self.module._restart_external_bus = Mock()
+
+        self.module.on_event(
+            {
+                "startup": False,
+                "event": "network.status.update",
+                "params": {"ipaddress": "192.168.1.20"},
+                "propagate": False,
+            }
+        )
+
+        self.module._restart_external_bus.assert_called()
+
+    def test_on_event_handle_network_update_same_ip(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.return_value = True
+        mock_pyrebus.return_value.endpoint = "tcp://192.168.1.10:5670"
+        self.module._restart_external_bus = Mock()
+
+        self.module.on_event(
+            {
+                "startup": False,
+                "event": "network.status.update",
+                "params": {"ipaddress": "192.168.1.10"},
+                "propagate": False,
+            }
+        )
+
+        self.assertFalse(self.module._restart_external_bus.called)
+
+    def test_on_process_restarts_when_bus_dies(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.side_effect = [True, False]
+        mock_pyrebus.return_value.run_once.return_value = False
+        self.module._stop_external_bus = Mock()
+        self.module._restart_external_bus = Mock()
+
+        self.module._on_process()
+
+        self.module._stop_external_bus.assert_called()
+        self.module._restart_external_bus.assert_called()
+        self.assertTrue(self.module._Cleepbus__restart_pending)
+
+    def test_restart_external_bus_backoff(self):
+        self.init_session()
+        self.module._Cleepbus__last_restart_attempt = time.time()
+        self.module._start_external_bus = Mock()
+        mock_pyrebus.return_value.is_running.return_value = False
+
+        self.module._restart_external_bus()
+
+        self.assertFalse(self.module._start_external_bus.called)
+        self.assertTrue(self.module._Cleepbus__restart_pending)
 
     def test_send_command_to_peer(self):
         self.init_session()
@@ -1443,6 +1504,36 @@ class TestsPyrebus(unittest.TestCase):
         logging.debug("Online: %s" % self.online)
 
         self.assertEqual(len(list(self.peers.keys())), 0)
+
+    def test_message_to_receive_from_pipe_term(self):
+        self.init_lib()
+        self.lib._PyreBus__externalbus_configured = True
+        mock_node = Mock()
+        mock_node.recv.return_value = [b"$TERM"]
+        self.lib.node = mock_node
+
+        self.assertFalse(self.lib._message_to_receive_from_pipe())
+        self.assertFalse(self.lib._PyreBus__externalbus_configured)
+
+    def test_message_to_receive_from_pipe_empty(self):
+        self.init_lib()
+        self.lib._PyreBus__externalbus_configured = True
+        mock_node = Mock()
+        mock_node.recv.return_value = []
+        self.lib.node = mock_node
+
+        self.assertFalse(self.lib._message_to_receive_from_pipe())
+        self.assertFalse(self.lib._PyreBus__externalbus_configured)
+
+    def test_message_to_receive_from_pipe_malformed_short(self):
+        self.init_lib()
+        self.lib._PyreBus__externalbus_configured = True
+        mock_node = Mock()
+        mock_node.recv.return_value = [b"ENTER"]
+        self.lib.node = mock_node
+
+        self.assertTrue(self.lib._message_to_receive_from_pipe())
+        self.assertTrue(self.lib._PyreBus__externalbus_configured)
 
     def test_message_to_send_to_pipe_whisper(self):
         self.init_lib()

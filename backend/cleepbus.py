@@ -2,6 +2,7 @@
 #  -*- coding: utf-8 -*-
 
 import json
+import time
 import uuid
 from str2bool import str2bool
 from cleep.core import CleepExternalBus
@@ -22,7 +23,7 @@ class Cleepbus(CleepExternalBus):
     """
 
     MODULE_AUTHOR = "Cleep"
-    MODULE_VERSION = "2.3.2"
+    MODULE_VERSION = "2.3.3"
     MODULE_CATEGORY = "APPLICATION"
     MODULE_DEPS = []
     MODULE_DESCRIPTION = "Enables communications between all your Cleep devices through your home network"
@@ -38,6 +39,8 @@ class Cleepbus(CleepExternalBus):
 
     # Timeout for inventory get_modules when building peer headers at bus start
     PEER_INFOS_MODULES_TIMEOUT = 3.0
+    # Avoid restart storms when network flaps or $TERM repeats
+    RESTART_BACKOFF = 30.0
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -70,6 +73,8 @@ class Cleepbus(CleepExternalBus):
         self.peers = {}
         self.hostname = Hostname(self.cleep_filesystem)
         self.uuid = None
+        self.__last_restart_attempt = 0.0
+        self.__restart_pending = False
 
     def _configure(self):
         """
@@ -178,29 +183,85 @@ class Cleepbus(CleepExternalBus):
         """
         # stop bus
         self.logger.trace("Stop module requested")
-        self._stop_external_bus()
+        self._stop_external_bus(clear_restart=True)
 
     def _on_process(self):
         """
         Custom process for cleep bus: get new message on external bus.
 
         Must stay short: BusClient pulls internal messages after this call.
+        If the pyre node signals death ($TERM / beacon gone), restart discovery.
         """
         if self.external_bus.is_running():
-            self.external_bus.run_once()
+            try:
+                still_running = self.external_bus.run_once()
+            except Exception:
+                self.logger.exception(
+                    "External bus poll failed unexpectedly, restarting discovery"
+                )
+                still_running = False
+
+            if not still_running:
+                self.logger.warning(
+                    "External bus stopped unexpectedly (discovery dead), restarting"
+                )
+                self.__restart_pending = True
+                try:
+                    # Always tear down so is_running() is False (no silent zombie)
+                    self._stop_external_bus()
+                except Exception:
+                    self.logger.exception(
+                        "Error while stopping dead external bus before restart"
+                    )
+
+        if self.__restart_pending:
+            self._restart_external_bus()
 
     def _start_external_bus(self):
         """
         Start external bus
         """
         self.external_bus.start(self.get_peer_infos())
+        self.__restart_pending = False
 
-    def _stop_external_bus(self):
+    def _stop_external_bus(self, clear_restart=False):
         """
         Stop external bus
+
+        Args:
+            clear_restart (bool): if True, cancel a pending auto-restart (network down)
         """
         self.logger.debug("Stop external bus")
         self.external_bus.stop()
+        if clear_restart:
+            self.__restart_pending = False
+
+    def _restart_external_bus(self):
+        """
+        Start the external bus again after an unexpected death or IP change (with backoff).
+        """
+        self.__restart_pending = True
+        now = time.time()
+        if now - self.__last_restart_attempt < self.RESTART_BACKOFF:
+            self.logger.debug(
+                "External bus restart deferred (backoff %.0fs)", self.RESTART_BACKOFF
+            )
+            return
+
+        self.__last_restart_attempt = now
+        self.logger.info("Restarting external bus")
+        try:
+            if self.external_bus.is_running():
+                self._stop_external_bus()
+        except Exception:
+            self.logger.exception("Error while stopping external bus before restart")
+
+        try:
+            self._start_external_bus()
+        except Exception:
+            self.logger.exception("Error while restarting external bus")
+            # Keep pending so the next process cycle retries after backoff
+            self.__restart_pending = True
 
     def _find_existing_peer(self, peer_infos):
         """
@@ -390,16 +451,37 @@ class Cleepbus(CleepExternalBus):
         # handle received event and transfer it to external buf if necessary
         self.logger.debug("Received event %s", event)
 
-        # network events to start or stop bus properly and avoid invalid ip address in pyre bus (workaround)
+        # network events to start or stop bus properly and avoid invalid ip address in pyre bus
         if event["event"] == "network.status.up" and not self.external_bus.is_running():
             # start external bus
             self._start_external_bus()
             return
 
         if event["event"] == "network.status.down" and self.external_bus.is_running():
-            # stop external bus
+            # stop external bus; do not auto-restart until network comes back up
             self.logger.trace("Stop requested by network down event")
-            self._stop_external_bus()
+            self._stop_external_bus(clear_restart=True)
+            return
+
+        if event["event"] == "network.status.update":
+            # IP / interface change without full down/up: rebind discovery
+            params = event.get("params") or {}
+            new_ip = params.get("ipaddress")
+            if self.external_bus.is_running():
+                endpoint = getattr(self.external_bus, "endpoint", None) or ""
+                if new_ip and endpoint and new_ip not in endpoint:
+                    self.logger.info(
+                        "Network IP changed to %s (endpoint was %s), restarting external bus",
+                        new_ip,
+                        endpoint,
+                    )
+                    self._restart_external_bus()
+            elif new_ip and not self.__restart_pending:
+                self.logger.info(
+                    "Network updated with IP %s while bus stopped, starting external bus",
+                    new_ip,
+                )
+                self._start_external_bus()
             return
 
         if (not event["startup"] if "startup" in event else True) and (

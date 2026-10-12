@@ -376,7 +376,26 @@ class PyreBus(ExternalBus):
             bool: True to continue, False to stop external bus
         """
         data = self.node.recv()
+        if not data:
+            self.logger.warning("Empty message received from pyre node, stopping bus")
+            self.__externalbus_configured = False
+            return False
+
         data_type = data.pop(0).decode("utf-8")
+        # Beacon/discovery death: single-frame "$TERM" (no peer/name frames)
+        if data_type == "$TERM":
+            self.logger.warning(
+                "Pyre node terminated ($TERM): discovery/beacon is dead"
+            )
+            self.__externalbus_configured = False
+            return False
+
+        if len(data) < 2:
+            self.logger.warning(
+                "Malformed pyre message type=%s (missing peer/name frames)", data_type
+            )
+            return True
+
         data_peer = uuid.UUID(bytes=data.pop(0))
         data_name = data.pop(0).decode("utf-8")
         self.logger.trace("type=%s peer=%s name=%s", data_type, data_peer, data_name)
@@ -443,6 +462,12 @@ class PyreBus(ExternalBus):
                 self.on_peer_disconnected(str(data_peer))
             except Exception:
                 self.logger.exception("Error handling peer disconnection")
+
+        elif data_type == "STOP":
+            # polite stop from node
+            self.logger.debug("Pyre STOP received")
+            self.__externalbus_configured = False
+            return False
 
         return True
 

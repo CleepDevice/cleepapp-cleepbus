@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.3] - 2026-10-12
+
+### Fixed
+- Auto-restart external bus when ZRE discovery dies (`$TERM` / empty node message) so devices stay visible after long uptime or network flaps
+- Restart discovery on `network.status.update` when the device IP changes
+- Require pyre-gevent 1.0.0 (beacon no longer suicides on transient UDP send errors)
+
 ## [2.3.2] - 2026-10-12
 
 ### Changed
