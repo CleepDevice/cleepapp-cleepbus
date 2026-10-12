@@ -81,13 +81,10 @@ function(cleepbusService, $filter) {
 
         self._kindIcon = function(kind) {
             switch (kind) {
-                case 'peer': return 'account-network';
-                case 'in': return 'arrow-down-bold';
-                case 'out': return 'arrow-up-bold';
-                case 'network': return 'lan';
-                case 'error': return 'alert';
-                case 'bus': return 'bus';
-                default: return 'information-outline';
+                case 'in': return 'message-arrow-left';
+                case 'out': return 'message-arrow-right';
+                case 'system': return 'cog';
+                default: return 'cog';
             }
         };
     };

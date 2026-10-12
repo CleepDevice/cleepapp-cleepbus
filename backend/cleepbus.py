@@ -232,7 +232,7 @@ class Cleepbus(CleepExternalBus):
                     "External bus stopped unexpectedly (discovery dead), restarting"
                 )
                 self._log_bus(
-                    "error",
+                    "system",
                     "Discovery stopped unexpectedly ($TERM / empty / poll fail)",
                 )
                 self.__restart_pending = True
@@ -254,7 +254,7 @@ class Cleepbus(CleepExternalBus):
         self.external_bus.start(self.get_peer_infos())
         self.__restart_pending = False
         endpoint = getattr(self.external_bus, "endpoint", None)
-        self._log_bus("bus", "External bus started", endpoint)
+        self._log_bus("system", "External bus started", endpoint)
 
     def _stop_external_bus(self, clear_restart=False):
         """
@@ -269,7 +269,7 @@ class Cleepbus(CleepExternalBus):
         if clear_restart:
             self.__restart_pending = False
         if was_running:
-            self._log_bus("bus", "External bus stopped")
+            self._log_bus("system", "External bus stopped")
 
     def _restart_external_bus(self):
         """
@@ -285,7 +285,7 @@ class Cleepbus(CleepExternalBus):
 
         self.__last_restart_attempt = now
         self.logger.info("Restarting external bus")
-        self._log_bus("bus", "Restarting external bus")
+        self._log_bus("system", "Restarting external bus")
         try:
             if self.external_bus.is_running():
                 self._stop_external_bus()
@@ -296,7 +296,7 @@ class Cleepbus(CleepExternalBus):
             self._start_external_bus()
         except Exception:
             self.logger.exception("Error while restarting external bus")
-            self._log_bus("error", "External bus restart failed")
+            self._log_bus("system", "External bus restart failed")
             # Keep pending so the next process cycle retries after backoff
             self.__restart_pending = True
 
@@ -344,7 +344,7 @@ class Cleepbus(CleepExternalBus):
         Append an entry to the recent bus activity log (config page).
 
         Args:
-            kind (str): category (bus, peer, in, out, network, error…)
+            kind (str): ``in`` (inbound), ``out`` (outbound), or ``system``
             summary (str): short human-readable line
             detail (str|None): optional extra context (truncated)
         """
@@ -408,16 +408,6 @@ class Cleepbus(CleepExternalBus):
             "peers": peers_rows,
             "messages": list(reversed(self.__bus_log)),
         }
-
-    def clear_bus_log(self):
-        """
-        Clear the recent bus activity log.
-
-        Returns:
-            bool: True
-        """
-        self.__bus_log.clear()
-        return True
 
     def _on_message_received(self, peer_id, message):
         """
@@ -546,7 +536,7 @@ class Cleepbus(CleepExternalBus):
         self.peers[peer_infos.uuid] = peer_infos
         self.logger.debug("Peer %s connected: %s", peer_id, str(peer_infos))
         self._log_bus(
-            "peer",
+            "system",
             f"Peer connected: {peer_infos.hostname or peer_infos.uuid}",
             f"ip={peer_infos.ip} ident={peer_id}",
         )
@@ -559,12 +549,12 @@ class Cleepbus(CleepExternalBus):
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
         if not peer_infos:
             self.logger.warning('Peer "%s" is unknown', peer_id)
-            self._log_bus("peer", f"Unknown peer disconnected: {peer_id}")
+            self._log_bus("system", f"Unknown peer disconnected: {peer_id}")
             return
 
         peer_infos.online = False
         self._log_bus(
-            "peer",
+            "system",
             f"Peer disconnected: {peer_infos.hostname or peer_infos.uuid}",
             f"ident={peer_id}",
         )
@@ -594,13 +584,13 @@ class Cleepbus(CleepExternalBus):
 
         # network events to start or stop bus properly and avoid invalid ip address in pyre bus
         if event["event"] == "network.status.up" and not self.external_bus.is_running():
-            self._log_bus("network", "Network up — starting external bus")
+            self._log_bus("system", "Network up — starting external bus")
             self._start_external_bus()
             return
 
         if event["event"] == "network.status.down" and self.external_bus.is_running():
             self.logger.trace("Stop requested by network down event")
-            self._log_bus("network", "Network down — stopping external bus")
+            self._log_bus("system", "Network down — stopping external bus")
             self._stop_external_bus(clear_restart=True)
             return
 
@@ -617,7 +607,7 @@ class Cleepbus(CleepExternalBus):
                         endpoint,
                     )
                     self._log_bus(
-                        "network",
+                        "system",
                         f"IP changed to {new_ip} — restarting bus",
                         f"was {endpoint}",
                     )
@@ -627,7 +617,7 @@ class Cleepbus(CleepExternalBus):
                     "Network updated with IP %s while bus stopped, starting external bus",
                     new_ip,
                 )
-                self._log_bus("network", f"Network updated ({new_ip}) — starting bus")
+                self._log_bus("system", f"Network updated ({new_ip}) — starting bus")
                 self._start_external_bus()
             return
 
@@ -639,6 +629,9 @@ class Cleepbus(CleepExternalBus):
             message.event = event.get("event")
             message.params = event.get("params")
             message.sender = event.get("sender")
+            event_name = event.get("event") or "?"
+            sender = event.get("sender") or "?"
+            self._log_bus("out", f"EVT {event_name} (broadcast)", f"sender={sender}")
             self.external_bus.send_message(message)
 
         else:

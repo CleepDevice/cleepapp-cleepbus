@@ -305,8 +305,8 @@ class TestsCleepbus(unittest.TestCase):
         )
         peer_offline.online = False
         self.module.peers = {"aaa": peer_online, "bbb": peer_offline}
-        self.module._log_bus("bus", "External bus started", "tcp://192.168.1.10:5670")
-        self.module._log_bus("peer", "Peer connected: peer-a")
+        self.module._log_bus("system", "External bus started", "tcp://192.168.1.10:5670")
+        self.module._log_bus("system", "Peer connected: peer-a")
 
         status = self.module.get_bus_status()
 
@@ -321,22 +321,13 @@ class TestsCleepbus(unittest.TestCase):
         self.assertTrue(status["peers"][0]["online"])
         self.assertEqual(len(status["messages"]), 2)
         # newest first
-        self.assertEqual(status["messages"][0]["kind"], "peer")
-        self.assertEqual(status["messages"][1]["kind"], "bus")
-
-    def test_clear_bus_log(self):
-        self.init_session()
-        self.module._log_bus("bus", "hello")
-        self.assertEqual(len(self.module.get_bus_status()["messages"]), 1)
-
-        self.assertTrue(self.module.clear_bus_log())
-
-        self.assertEqual(len(self.module.get_bus_status()["messages"]), 0)
+        self.assertEqual(status["messages"][0]["kind"], "system")
+        self.assertEqual(status["messages"][1]["kind"], "system")
 
     def test_bus_log_maxlen(self):
         self.init_session()
         for i in range(self.module.BUS_LOG_SIZE + 5):
-            self.module._log_bus("bus", f"entry-{i}")
+            self.module._log_bus("system", f"entry-{i}")
 
         messages = self.module.get_bus_status()["messages"]
         self.assertEqual(len(messages), self.module.BUS_LOG_SIZE)
@@ -623,6 +614,11 @@ class TestsCleepbus(unittest.TestCase):
         self.assertEqual(call_args.args[0].command_uuid, None)
         self.assertEqual(call_args.args[0].peer_infos, None)
         self.assertEqual(call_args.args[0].to, None)
+        messages = self.module.get_bus_status()["messages"]
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]["kind"], "out")
+        self.assertEqual(messages[0]["summary"], "EVT my.dummy.event (broadcast)")
+        self.assertEqual(messages[0]["detail"], "sender=mod1")
 
     def test_on_event_drop_propagate(self):
         self.init_session()

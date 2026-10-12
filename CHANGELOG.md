@@ -12,7 +12,8 @@
 
 ### Added
 - Config page: Pyre connection status, peers list, and last 20 bus activity entries
-  (`get_bus_status` / `clear_bus_log`) for on-device debugging
+  (`get_bus_status`) for on-device debugging
+- Log outbound propagated events (broadcast) in the activity buffer
 
 ## [2.3.2] - 2026-10-12
 
