@@ -28,7 +28,9 @@ class PyreBus(ExternalBus):
 
     BUS_STOP = "$$STOP$$"
 
-    POLL_TIMEOUT = 500  # ms
+    # Keep short: run_once is called from the module BusClient loop before pull.
+    # A long poll starves internal bus commands destined to cleepbus.
+    POLL_TIMEOUT = 50  # ms
 
     def __init__(
         self,
@@ -326,9 +328,12 @@ class PyreBus(ExternalBus):
         """
         return self.__externalbus_configured
 
-    def run_once(self):
+    def run_once(self, timeout_ms=None):
         """
         Run pyre polling bus once
+
+        Args:
+            timeout_ms (int): poll timeout in milliseconds. Defaults to POLL_TIMEOUT.
 
         Returns:
             bool: return True all the time except when bus is stopped or not configured
@@ -343,8 +348,9 @@ class PyreBus(ExternalBus):
 
         # poll external bus
         items = {}
+        poll_timeout = self.POLL_TIMEOUT if timeout_ms is None else timeout_ms
         try:
-            items = dict(self.poller.poll(self.POLL_TIMEOUT))
+            items = dict(self.poller.poll(poll_timeout))
         except KeyboardInterrupt:
             # stop requested by user
             self.logger.debug("Stop Pyre bus")

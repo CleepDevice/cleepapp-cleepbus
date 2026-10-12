@@ -7,7 +7,7 @@ from str2bool import str2bool
 from cleep.core import CleepExternalBus
 from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
-from cleep.common import MessageRequest, PeerInfos
+from cleep.common import MessageRequest, MessageResponse, PeerInfos
 import cleep.libs.internals.tools as Tools
 
 # pylint: disable=E0402
@@ -22,7 +22,7 @@ class Cleepbus(CleepExternalBus):
     """
 
     MODULE_AUTHOR = "Cleep"
-    MODULE_VERSION = "2.3.1"
+    MODULE_VERSION = "2.3.2"
     MODULE_CATEGORY = "APPLICATION"
     MODULE_DEPS = []
     MODULE_DESCRIPTION = "Enables communications between all your Cleep devices through your home network"
@@ -35,6 +35,9 @@ class Cleepbus(CleepExternalBus):
 
     MODULE_CONFIG_FILE = "cleepbus.conf"
     DEFAULT_CONFIG = {"uuid": None}
+
+    # Timeout for inventory get_modules when building peer headers at bus start
+    PEER_INFOS_MODULES_TIMEOUT = 3.0
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -93,7 +96,7 @@ class Cleepbus(CleepExternalBus):
                 port (string): device http port
                 macs (string): list of mac addresses
                 ssl (string): "0" if ssl disabled, "1" otherwise
-                auth (str): "0" if auth enabled, "1" otherwise
+                auth (str): "1" if auth enabled, "0" otherwise
                 cleepdesktop (string): "1" if device is cleepdesktop, "0" otherwise
                 apps (string): list of installed applications
                 hwmodel (string): board model
@@ -111,7 +114,9 @@ class Cleepbus(CleepExternalBus):
 
         # get installed modules
         modules = {}
-        resp = self.send_command("get_modules", "inventory", timeout=10.0)
+        resp = self.send_command(
+            "get_modules", "inventory", timeout=self.PEER_INFOS_MODULES_TIMEOUT
+        )
         if not resp.error:
             modules = resp.data
 
@@ -177,7 +182,9 @@ class Cleepbus(CleepExternalBus):
 
     def _on_process(self):
         """
-        Custom process for cleep bus: get new message on external bus
+        Custom process for cleep bus: get new message on external bus.
+
+        Must stay short: BusClient pulls internal messages after this call.
         """
         if self.external_bus.is_running():
             self.external_bus.run_once()
@@ -243,7 +250,9 @@ class Cleepbus(CleepExternalBus):
             message (MessageRequest): message from external bus
 
         Returns:
-            MessageResponse if message is a command
+            MessageResponse if message is a command executed synchronously, else None.
+            Inbound commands are executed asynchronously to avoid blocking the
+            module/_on_process path; response is sent back to the peer by the task.
         """
         self.logger.trace("Raw message received on external bus: %s", message)
         # fill message with peer infos
@@ -257,19 +266,74 @@ class Cleepbus(CleepExternalBus):
         self.logger.debug("Message received on external bus: %s", message)
 
         if message.is_command():
-            # send command and return response
-            return self.send_command(
-                message.command,
-                message.to,
-                message.params,
-                (message.timeout - 2.0)
-                if message.timeout is not None and message.timeout >= 5.0
-                else 5.0,
+            # Offload to a background task: send_command is blocking and would
+            # starve the BusClient loop / ZRE poll if run inline.
+            task = self.task_factory.create_task(
+                None, self._execute_inbound_command, task_args=[message]
             )
+            task.start()
+            return None
 
         # send event
         self.send_event(message.event, message.params, to=message.to)
         return None
+
+    def _inbound_command_timeout(self, message):
+        """
+        Compute internal timeout for an inbound peer command.
+
+        Args:
+            message (MessageRequest): inbound command
+
+        Returns:
+            float: timeout in seconds
+        """
+        if message.timeout is not None and message.timeout >= 5.0:
+            return message.timeout - 2.0
+        return 5.0
+
+    def _execute_inbound_command(self, message):
+        """
+        Execute inbound peer command and whisper the response back.
+
+        Args:
+            message (MessageRequest): inbound command (peer_infos already set)
+        """
+        try:
+            response = self.send_command(
+                message.command,
+                message.to,
+                message.params,
+                self._inbound_command_timeout(message),
+            )
+            if not isinstance(response, MessageResponse):
+                # Robustness: wrap unexpected return types
+                wrapped = MessageResponse()
+                if isinstance(response, dict):
+                    wrapped.fill_from_dict(response)
+                else:
+                    wrapped.error = True
+                    wrapped.message = "Invalid command response type"
+                response = wrapped
+
+            self.external_bus._send_command_response_to_peer(message, response)
+        except Exception:
+            self.logger.exception(
+                'Failed to execute inbound peer command "%s" for peer %s:',
+                message.command,
+                message.peer_infos.uuid if message.peer_infos else None,
+            )
+            try:
+                error_response = MessageResponse(
+                    error=True, message="Inbound command execution failed"
+                )
+                self.external_bus._send_command_response_to_peer(
+                    message, error_response
+                )
+            except Exception:
+                self.logger.exception(
+                    "Unable to send inbound command error response to peer"
+                )
 
     def _on_peer_connected(self, peer_id, peer_infos):
         """
@@ -416,6 +480,28 @@ class Cleepbus(CleepExternalBus):
             peer_uuid (string): peer uuid
             params (dict): event parameters. Default None
         """
+        self._check_parameters(
+            [
+                {"name": "event_name", "type": str, "value": event_name},
+                {"name": "peer_uuid", "type": str, "value": peer_uuid},
+                {
+                    "name": "peer_uuid",
+                    "type": str,
+                    "value": peer_uuid,
+                    "validator": lambda val: val in self.peers,
+                    "message": f'Specified peer "{peer_uuid}" does not exist',
+                },
+                {
+                    "name": "peer_uuid",
+                    "type": str,
+                    "value": peer_uuid,
+                    "validator": lambda val: self.peers[val].online,
+                    "message": f'Specified peer "{peer_uuid}" is not online',
+                },
+                {"name": "params", "type": dict, "value": params, "none": True},
+            ]
+        )
+
         # prepare message
         message = MessageRequest()
         message.event = event_name

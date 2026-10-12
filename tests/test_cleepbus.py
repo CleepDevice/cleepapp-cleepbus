@@ -13,7 +13,7 @@ from cleep.exception import (
     CommandError,
     Unauthorized,
 )
-from cleep.common import PeerInfos, MessageRequest
+from cleep.common import PeerInfos, MessageRequest, MessageResponse
 import os
 import time
 from uuid import UUID
@@ -372,21 +372,48 @@ class TestsCleepbus(unittest.TestCase):
         }
         msg.peer_infos = peer_infos
         self.module.send_event = Mock()
-        resp = {
-            "error": False,
-            "message": "",
-            "data": {
-                "resp1": "val1",
-            },
+        self.module.send_command = Mock()
+        task = Mock()
+        self.module.task_factory = Mock()
+        self.module.task_factory.create_task.return_value = task
+
+        result = self.module._on_message_received("1234567890", msg)
+
+        self.assertIsNone(result)
+        self.module.task_factory.create_task.assert_called_once()
+        task.start.assert_called_once()
+        self.assertFalse(self.module.send_command.called)
+        self.assertFalse(self.module.send_event.called)
+
+    def test_execute_inbound_command(self):
+        self.init_session()
+        peer_infos = PeerInfos(
+            uuid="123-456-789",
+            ident="1234567890",
+            hostname="dummyhostname",
+            ip="1.1.1.1",
+            macs=["00:00:00:00:00"],
+        )
+        self.module.peers = {
+            "123-456-789": peer_infos,
         }
+        msg = MessageRequest()
+        msg.command = "my_command"
+        msg.to = "dummy"
+        msg.params = {"param1": "value1"}
+        msg.peer_infos = peer_infos
+        msg.command_uuid = "cmd-uuid"
+        resp = MessageResponse(data={"resp1": "val1"})
         self.module.send_command = Mock(return_value=resp)
 
-        self.module._on_message_received("1234567890", msg)
+        self.module._execute_inbound_command(msg)
 
         self.module.send_command.assert_called_with(
             "my_command", "dummy", {"param1": "value1"}, 5.0
         )
-        self.assertFalse(self.module.send_event.called)
+        mock_pyrebus.return_value._send_command_response_to_peer.assert_called_with(
+            msg, resp
+        )
 
     def test_on_message_received_from_unknown_peer(self):
         self.init_session()
@@ -684,6 +711,28 @@ class TestsCleepbus(unittest.TestCase):
         self.assertDictEqual(msg.params, {"param1": "value1"})
         self.assertDictEqual(msg.peer_infos.to_dict(), peer_infos.to_dict())
         self.assertEqual(msg.timeout, None)
+
+    def test_send_event_to_peer_invalid_parameters(self):
+        self.init_session()
+        peer_infos = self.make_peer_infos()
+        peer_infos.online = True
+        self.module.peers = {
+            peer_infos.uuid: peer_infos,
+        }
+
+        with self.assertRaises(InvalidParameter) as cm:
+            self.module._send_event_to_peer("my_event", "123-123-123", {"param1": "value1"})
+        self.assertEqual(
+            str(cm.exception), 'Specified peer "123-123-123" does not exist'
+        )
+        peer_infos.online = False
+        with self.assertRaises(InvalidParameter) as cm:
+            self.module._send_event_to_peer(
+                "my_event", peer_infos.uuid, {"param1": "value1"}
+            )
+        self.assertEqual(
+            str(cm.exception), 'Specified peer "%s" is not online' % peer_infos.uuid
+        )
 
 
 class TestsFunctionnalCleepbus(unittest.TestCase):

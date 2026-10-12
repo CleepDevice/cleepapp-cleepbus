@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.3.2] - 2026-10-12
+
+### Changed
+- Shorten ZRE poll timeout (50ms) so internal bus is not starved by `_on_process`
+- Execute inbound peer commands asynchronously (task_factory) instead of blocking the module loop
+- Reduce `get_modules` timeout when building peer infos at bus start
+- Validate `_send_event_to_peer` parameters like commands (peer exists / online)
+
+### Fixed
+- Correct `auth` field documentation in `get_peer_infos`
+
 ## [2.3.1] - 2024-11-01
 
 ### Changed
