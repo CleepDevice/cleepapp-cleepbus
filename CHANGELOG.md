@@ -7,6 +7,9 @@
 - Restart discovery on `network.status.update` when the device IP changes
 - Require pyre-gevent 1.0.0 (beacon no longer suicides on transient UDP send errors)
 
+### Changed
+- Drop `str2bool` dependency; parse peer header bools with a local `_as_bool` helper
+
 ## [2.3.2] - 2026-10-12
 
 ### Changed

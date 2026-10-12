@@ -247,6 +247,20 @@ class TestsCleepbus(unittest.TestCase):
             },
         )
 
+    def test_as_bool(self):
+        self.assertTrue(self.module._as_bool("1"))
+        self.assertTrue(self.module._as_bool("true"))
+        self.assertTrue(self.module._as_bool("YES"))
+        self.assertTrue(self.module._as_bool(True))
+        self.assertTrue(self.module._as_bool(1))
+        self.assertFalse(self.module._as_bool("0"))
+        self.assertFalse(self.module._as_bool("false"))
+        self.assertFalse(self.module._as_bool(False))
+        self.assertFalse(self.module._as_bool(0))
+        self.assertFalse(self.module._as_bool(None, False))
+        self.assertTrue(self.module._as_bool(None, True))
+        self.assertFalse(self.module._as_bool("maybe", False))
+
     def test_on_stop(self):
         self.init_session()
         self.module._stop_external_bus = Mock()

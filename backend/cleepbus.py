@@ -4,7 +4,6 @@
 import json
 import time
 import uuid
-from str2bool import str2bool
 from cleep.core import CleepExternalBus
 from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
@@ -164,9 +163,9 @@ class Cleepbus(CleepExternalBus):
         peer_infos.uuid = infos.get("uuid", None)
         peer_infos.hostname = infos.get("hostname", None)
         peer_infos.port = int(infos.get("port", peer_infos.port))
-        peer_infos.ssl = bool(str2bool(infos.get("ssl", f"{peer_infos.ssl}")))
-        peer_infos.cleepdesktop = bool(
-            str2bool(infos.get("cleepdesktop", f"{peer_infos.cleepdesktop}"))
+        peer_infos.ssl = Cleepbus._as_bool(infos.get("ssl"), peer_infos.ssl)
+        peer_infos.cleepdesktop = Cleepbus._as_bool(
+            infos.get("cleepdesktop"), peer_infos.cleepdesktop
         )
         peer_infos.macs = json.loads(infos.get("macs", "[]"))
         peer_infos.extra = {
@@ -176,6 +175,27 @@ class Cleepbus(CleepExternalBus):
         }
 
         return peer_infos
+
+    @staticmethod
+    def _as_bool(value, default=False):
+        """
+        Coerce peer-header values to bool (ZRE headers are strings).
+
+        Replaces the former ``str2bool`` dependency. Accepts bool/int and common
+        string forms (``1``/``0``, ``true``/``false``, ``yes``/``no``, …).
+        """
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        text = str(value).strip().lower()
+        if text in ("1", "true", "t", "yes", "y", "on"):
+            return True
+        if text in ("0", "false", "f", "no", "n", "off", ""):
+            return False
+        return default
 
     def _on_stop(self):
         """
