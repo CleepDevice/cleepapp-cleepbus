@@ -1,5 +1,10 @@
 {
     "icon": "bus",
-    "config": {},
-    "global": {}
+    "global": {
+        "js": ["cleepbus.service.js"]
+    },
+    "config": {
+        "js": ["cleepbus.config.js"],
+        "html": ["cleepbus.config.html"]
+    }
 }

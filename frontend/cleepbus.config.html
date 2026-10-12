@@ -1,0 +1,29 @@
+<div layout="column" layout-padding ng-cloak>
+
+    <config-button
+        cl-title="Reload status, peers and activity log"
+        cl-btn-label="Refresh all data" cl-btn-icon="refresh"
+        cl-click="$ctrl.refresh()" cl-disabled="$ctrl.loading"
+    ></config-button>
+
+    <config-section cl-title="Connection" cl-icon="lan-connect"></config-section>
+    <config-comment
+        cl-title="Bus status"
+        cl-comment="$ctrl.connectionComment" cl-mode="markdown"
+    ></config-comment>
+
+    <config-section cl-title="Peers" cl-icon="account-multiple"></config-section>
+    <config-list
+        cl-items="$ctrl.peersItems"
+        cl-empty="No peers discovered yet"
+        cl-empty-icon="lan-disconnect"
+    ></config-list>
+
+    <config-section cl-title="Recent activity (last 20 bus events)" cl-icon="message-text-clock"></config-section>
+    <config-list
+        cl-items="$ctrl.messagesItems"
+        cl-empty="No activity recorded yet"
+        cl-empty-icon="message-off"
+    ></config-list>
+
+</div>

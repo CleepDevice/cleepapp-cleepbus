@@ -292,6 +292,56 @@ class TestsCleepbus(unittest.TestCase):
 
         mock_pyrebus.return_value.stop.assert_called()
 
+    def test_get_bus_status(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.return_value = True
+        mock_pyrebus.return_value.endpoint = "tcp://192.168.1.10:5670"
+        peer_online = PeerInfos(
+            uuid="aaa", ident="id1", hostname="peer-a", ip="192.168.1.2"
+        )
+        peer_online.online = True
+        peer_offline = PeerInfos(
+            uuid="bbb", ident="id2", hostname="peer-b", ip="192.168.1.3"
+        )
+        peer_offline.online = False
+        self.module.peers = {"aaa": peer_online, "bbb": peer_offline}
+        self.module._log_bus("bus", "External bus started", "tcp://192.168.1.10:5670")
+        self.module._log_bus("peer", "Peer connected: peer-a")
+
+        status = self.module.get_bus_status()
+
+        self.assertTrue(status["running"])
+        self.assertFalse(status["restart_pending"])
+        self.assertEqual(status["endpoint"], "tcp://192.168.1.10:5670")
+        self.assertEqual(status["hostname"], "testhostname")
+        self.assertEqual(status["peers_online"], 1)
+        self.assertEqual(status["peers_total"], 2)
+        self.assertEqual(len(status["peers"]), 2)
+        self.assertEqual(status["peers"][0]["hostname"], "peer-a")
+        self.assertTrue(status["peers"][0]["online"])
+        self.assertEqual(len(status["messages"]), 2)
+        # newest first
+        self.assertEqual(status["messages"][0]["kind"], "peer")
+        self.assertEqual(status["messages"][1]["kind"], "bus")
+
+    def test_clear_bus_log(self):
+        self.init_session()
+        self.module._log_bus("bus", "hello")
+        self.assertEqual(len(self.module.get_bus_status()["messages"]), 1)
+
+        self.assertTrue(self.module.clear_bus_log())
+
+        self.assertEqual(len(self.module.get_bus_status()["messages"]), 0)
+
+    def test_bus_log_maxlen(self):
+        self.init_session()
+        for i in range(self.module.BUS_LOG_SIZE + 5):
+            self.module._log_bus("bus", f"entry-{i}")
+
+        messages = self.module.get_bus_status()["messages"]
+        self.assertEqual(len(messages), self.module.BUS_LOG_SIZE)
+        self.assertEqual(messages[0]["summary"], f"entry-{self.module.BUS_LOG_SIZE + 4}")
+
     def test_get_peers(self):
         self.init_session()
         self.module.peers = {

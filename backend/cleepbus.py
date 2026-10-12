@@ -4,6 +4,7 @@
 import json
 import time
 import uuid
+from collections import deque
 from cleep.core import CleepExternalBus
 from cleep.libs.configs.hostname import Hostname
 from cleep import __version__ as VERSION
@@ -40,6 +41,8 @@ class Cleepbus(CleepExternalBus):
     PEER_INFOS_MODULES_TIMEOUT = 3.0
     # Avoid restart storms when network flaps or $TERM repeats
     RESTART_BACKOFF = 30.0
+    # Ring buffer of recent bus activity for the config/debug page
+    BUS_LOG_SIZE = 20
 
     def __init__(self, bootstrap, debug_enabled):
         """
@@ -74,6 +77,9 @@ class Cleepbus(CleepExternalBus):
         self.uuid = None
         self.__last_restart_attempt = 0.0
         self.__restart_pending = False
+        # Recent activity (newest last). Entries::
+        #   {ts, kind, summary, detail}
+        self.__bus_log = deque(maxlen=self.BUS_LOG_SIZE)
 
     def _configure(self):
         """
@@ -225,6 +231,10 @@ class Cleepbus(CleepExternalBus):
                 self.logger.warning(
                     "External bus stopped unexpectedly (discovery dead), restarting"
                 )
+                self._log_bus(
+                    "error",
+                    "Discovery stopped unexpectedly ($TERM / empty / poll fail)",
+                )
                 self.__restart_pending = True
                 try:
                     # Always tear down so is_running() is False (no silent zombie)
@@ -243,6 +253,8 @@ class Cleepbus(CleepExternalBus):
         """
         self.external_bus.start(self.get_peer_infos())
         self.__restart_pending = False
+        endpoint = getattr(self.external_bus, "endpoint", None)
+        self._log_bus("bus", "External bus started", endpoint)
 
     def _stop_external_bus(self, clear_restart=False):
         """
@@ -252,9 +264,12 @@ class Cleepbus(CleepExternalBus):
             clear_restart (bool): if True, cancel a pending auto-restart (network down)
         """
         self.logger.debug("Stop external bus")
+        was_running = self.external_bus.is_running()
         self.external_bus.stop()
         if clear_restart:
             self.__restart_pending = False
+        if was_running:
+            self._log_bus("bus", "External bus stopped")
 
     def _restart_external_bus(self):
         """
@@ -270,6 +285,7 @@ class Cleepbus(CleepExternalBus):
 
         self.__last_restart_attempt = now
         self.logger.info("Restarting external bus")
+        self._log_bus("bus", "Restarting external bus")
         try:
             if self.external_bus.is_running():
                 self._stop_external_bus()
@@ -280,6 +296,7 @@ class Cleepbus(CleepExternalBus):
             self._start_external_bus()
         except Exception:
             self.logger.exception("Error while restarting external bus")
+            self._log_bus("error", "External bus restart failed")
             # Keep pending so the next process cycle retries after backoff
             self.__restart_pending = True
 
@@ -322,6 +339,86 @@ class Cleepbus(CleepExternalBus):
             for peer_uuid, peer_infos in self.peers.items()
         }
 
+    def _log_bus(self, kind, summary, detail=None):
+        """
+        Append an entry to the recent bus activity log (config page).
+
+        Args:
+            kind (str): category (bus, peer, in, out, network, error…)
+            summary (str): short human-readable line
+            detail (str|None): optional extra context (truncated)
+        """
+        if detail is not None:
+            detail = str(detail)
+            if len(detail) > 240:
+                detail = detail[:237] + "..."
+        self.__bus_log.append(
+            {
+                "ts": time.time(),
+                "kind": kind,
+                "summary": str(summary)[:200],
+                "detail": detail,
+            }
+        )
+
+    def get_bus_status(self):
+        """
+        Return Pyre connection status and recent bus activity for the config UI.
+
+        Returns:
+            dict::
+
+            {
+                running (bool): True if external bus is up
+                restart_pending (bool): True if auto-restart is scheduled
+                endpoint (str|None): ZRE TCP endpoint (tcp://ip:port)
+                uuid (str): this device uuid
+                hostname (str): this device hostname
+                peers_online (int): online peers count
+                peers_total (int): known peers count
+                peers (list): compact peer rows
+                    [{uuid, hostname, ip, online, cleepdesktop}, ...]
+                messages (list): last BUS_LOG_SIZE activity entries, newest first
+                    [{ts, kind, summary, detail}, ...]
+            }
+        """
+        peers_rows = []
+        online = 0
+        for peer_uuid, peer_infos in self.peers.items():
+            row = {
+                "uuid": peer_uuid,
+                "hostname": peer_infos.hostname,
+                "ip": peer_infos.ip,
+                "online": bool(peer_infos.online),
+                "cleepdesktop": bool(peer_infos.cleepdesktop),
+            }
+            peers_rows.append(row)
+            if peer_infos.online:
+                online += 1
+        peers_rows.sort(key=lambda p: (not p["online"], p["hostname"] or ""))
+
+        return {
+            "running": self.external_bus.is_running(),
+            "restart_pending": self.__restart_pending,
+            "endpoint": getattr(self.external_bus, "endpoint", None),
+            "uuid": self.uuid,
+            "hostname": self.hostname.get_hostname(),
+            "peers_online": online,
+            "peers_total": len(self.peers),
+            "peers": peers_rows,
+            "messages": list(reversed(self.__bus_log)),
+        }
+
+    def clear_bus_log(self):
+        """
+        Clear the recent bus activity log.
+
+        Returns:
+            bool: True
+        """
+        self.__bus_log.clear()
+        return True
+
     def _on_message_received(self, peer_id, message):
         """
         Handle received message from external bus
@@ -342,9 +439,22 @@ class Cleepbus(CleepExternalBus):
             self.logger.warning(
                 'Received message from unknown peer "%s", drop it: %s', peer_id, message
             )
+            self._log_bus("in", f"Dropped message from unknown peer {peer_id}")
             return None
         message.peer_infos = peer_infos
         self.logger.debug("Message received on external bus: %s", message)
+        peer_label = peer_infos.hostname or peer_infos.uuid or peer_id
+        if message.is_command():
+            self._log_bus(
+                "in",
+                f"CMD {message.command} from {peer_label}",
+                f"to={message.to}",
+            )
+        else:
+            self._log_bus(
+                "in",
+                f"EVT {message.event} from {peer_label}",
+            )
 
         if message.is_command():
             # Offload to a background task: send_command is blocking and would
@@ -435,6 +545,11 @@ class Cleepbus(CleepExternalBus):
         peer_infos.online = True
         self.peers[peer_infos.uuid] = peer_infos
         self.logger.debug("Peer %s connected: %s", peer_id, str(peer_infos))
+        self._log_bus(
+            "peer",
+            f"Peer connected: {peer_infos.hostname or peer_infos.uuid}",
+            f"ip={peer_infos.ip} ident={peer_id}",
+        )
 
     def _on_peer_disconnected(self, peer_id):
         """
@@ -444,9 +559,15 @@ class Cleepbus(CleepExternalBus):
         peer_infos = self._get_peer_infos_from_peer_id(peer_id)
         if not peer_infos:
             self.logger.warning('Peer "%s" is unknown', peer_id)
+            self._log_bus("peer", f"Unknown peer disconnected: {peer_id}")
             return
 
         peer_infos.online = False
+        self._log_bus(
+            "peer",
+            f"Peer disconnected: {peer_infos.hostname or peer_infos.uuid}",
+            f"ident={peer_id}",
+        )
 
     def _get_peer_infos_from_peer_id(self, peer_id):
         """
@@ -473,13 +594,13 @@ class Cleepbus(CleepExternalBus):
 
         # network events to start or stop bus properly and avoid invalid ip address in pyre bus
         if event["event"] == "network.status.up" and not self.external_bus.is_running():
-            # start external bus
+            self._log_bus("network", "Network up — starting external bus")
             self._start_external_bus()
             return
 
         if event["event"] == "network.status.down" and self.external_bus.is_running():
-            # stop external bus; do not auto-restart until network comes back up
             self.logger.trace("Stop requested by network down event")
+            self._log_bus("network", "Network down — stopping external bus")
             self._stop_external_bus(clear_restart=True)
             return
 
@@ -495,12 +616,18 @@ class Cleepbus(CleepExternalBus):
                         new_ip,
                         endpoint,
                     )
+                    self._log_bus(
+                        "network",
+                        f"IP changed to {new_ip} — restarting bus",
+                        f"was {endpoint}",
+                    )
                     self._restart_external_bus()
             elif new_ip and not self.__restart_pending:
                 self.logger.info(
                     "Network updated with IP %s while bus stopped, starting external bus",
                     new_ip,
                 )
+                self._log_bus("network", f"Network updated ({new_ip}) — starting bus")
                 self._start_external_bus()
             return
 
@@ -571,6 +698,8 @@ class Cleepbus(CleepExternalBus):
         message.peer_infos = self.peers[peer_uuid]
         message.timeout = timeout
 
+        peer_label = message.peer_infos.hostname or peer_uuid
+        self._log_bus("out", f"CMD {command} to {peer_label}", f"module={to}")
         self.external_bus.send_message(message, timeout, manual_response)
 
     def _send_event_to_peer(self, event_name, peer_uuid, params=None):
@@ -610,4 +739,6 @@ class Cleepbus(CleepExternalBus):
         message.params = params
         message.peer_infos = self.peers[peer_uuid]
 
+        peer_label = message.peer_infos.hostname or peer_uuid
+        self._log_bus("out", f"EVT {event_name} to {peer_label}")
         self.external_bus.send_message(message)

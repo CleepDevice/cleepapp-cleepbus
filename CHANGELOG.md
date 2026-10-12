@@ -10,6 +10,10 @@
 ### Changed
 - Drop `str2bool` dependency; parse peer header bools with a local `_as_bool` helper
 
+### Added
+- Config page: Pyre connection status, peers list, and last 20 bus activity entries
+  (`get_bus_status` / `clear_bus_log`) for on-device debugging
+
 ## [2.3.2] - 2026-10-12
 
 ### Changed
