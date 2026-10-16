@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.4] - 2026-10-16
+
+### Added
+- Advertise registered public addresses in the peer announcement (`remoteaccess`), and refresh that header so the next peer receives the current one
+
 ## [2.3.3] - 2026-10-12
 
 ### Fixed

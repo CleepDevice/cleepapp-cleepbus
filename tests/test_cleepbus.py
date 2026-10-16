@@ -69,6 +69,9 @@ class TestsCleepbus(unittest.TestCase):
 
     def init_session(self, start_module=True):
         self.module = self.session.setup(Cleepbus, mock_on_start=False, mock_on_stop=False)
+        self.session.add_mock_command(
+            self.session.make_mock_command("get_remote_access_urls", {})
+        )
         if start_module:
             self.session.start_module(self.module)
             self.session.add_mock_command(
@@ -175,10 +178,44 @@ class TestsCleepbus(unittest.TestCase):
                 "uuid": self.module.uuid,
                 "cleepdesktop": "0",
                 "auth": "0",
+                "remoteaccess": "{}",
             },
         )
 
         mock_pyrebus.return_value.get_mac_addresses = Mock()
+
+    def test_get_peer_infos_includes_remote_access(self):
+        self.init_session()
+        mock_pyrebus.return_value.get_mac_addresses.return_value = ["00:00:00:00:00:00"]
+        self.session.set_mock_command_response(
+            "get_remote_access_urls", {"ngrok": "https://dummy.ngrok.app"}
+        )
+
+        infos = self.module.get_peer_infos()
+
+        self.assertEqual(
+            infos["remoteaccess"], '{"ngrok": "https://dummy.ngrok.app"}'
+        )
+
+    def test_refresh_remote_access_header(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.return_value = True
+        mock_pyrebus.return_value.set_header.reset_mock()
+        self.session.set_mock_command_response(
+            "get_remote_access_urls", {"ngrok": "https://dummy.ngrok.app"}
+        )
+        self.module._Cleepbus__last_remote_access_refresh = 0
+
+        self.module._refresh_remote_access_header()
+
+        mock_pyrebus.return_value.set_header.assert_called_once_with(
+            "remoteaccess", '{"ngrok": "https://dummy.ngrok.app"}'
+        )
+
+        mock_pyrebus.return_value.set_header.reset_mock()
+        self.module._Cleepbus__last_remote_access_refresh = 0
+        self.module._refresh_remote_access_header()
+        self.assertFalse(mock_pyrebus.return_value.set_header.called)
 
     def test_get_peer_infos_exception(self):
         self.init_session()
@@ -207,6 +244,7 @@ class TestsCleepbus(unittest.TestCase):
                 "uuid": self.module.uuid,
                 "cleepdesktop": "0",
                 "auth": "0",
+                "remoteaccess": "{}",
             },
         )
 
@@ -248,18 +286,18 @@ class TestsCleepbus(unittest.TestCase):
         )
 
     def test_as_bool(self):
-        self.assertTrue(self.module._as_bool("1"))
-        self.assertTrue(self.module._as_bool("true"))
-        self.assertTrue(self.module._as_bool("YES"))
-        self.assertTrue(self.module._as_bool(True))
-        self.assertTrue(self.module._as_bool(1))
-        self.assertFalse(self.module._as_bool("0"))
-        self.assertFalse(self.module._as_bool("false"))
-        self.assertFalse(self.module._as_bool(False))
-        self.assertFalse(self.module._as_bool(0))
-        self.assertFalse(self.module._as_bool(None, False))
-        self.assertTrue(self.module._as_bool(None, True))
-        self.assertFalse(self.module._as_bool("maybe", False))
+        self.assertTrue(Cleepbus._as_bool("1"))
+        self.assertTrue(Cleepbus._as_bool("true"))
+        self.assertTrue(Cleepbus._as_bool("YES"))
+        self.assertTrue(Cleepbus._as_bool(True))
+        self.assertTrue(Cleepbus._as_bool(1))
+        self.assertFalse(Cleepbus._as_bool("0"))
+        self.assertFalse(Cleepbus._as_bool("false"))
+        self.assertFalse(Cleepbus._as_bool(False))
+        self.assertFalse(Cleepbus._as_bool(0))
+        self.assertFalse(Cleepbus._as_bool(None, False))
+        self.assertTrue(Cleepbus._as_bool(None, True))
+        self.assertFalse(Cleepbus._as_bool("maybe", False))
 
     def test_on_stop(self):
         self.init_session()

@@ -328,6 +328,22 @@ class PyreBus(ExternalBus):
         """
         return self.__externalbus_configured
 
+    def set_header(self, key, value):
+        """
+        Update a header advertised to the next peer that connects.
+
+        Args:
+            key (str): header name
+            value (str): header value
+
+        Returns:
+            bool: True when the running node accepted the header
+        """
+        if not self.node:
+            return False
+        self.node.set_header(str(key), "" if value is None else str(value))
+        return True
+
     def run_once(self, timeout_ms=None):
         """
         Run pyre polling bus once
