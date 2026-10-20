@@ -72,6 +72,9 @@ class TestsCleepbus(unittest.TestCase):
         self.session.add_mock_command(
             self.session.make_mock_command("get_remote_access_urls", {})
         )
+        self.session.add_mock_command(
+            self.session.make_mock_command("get_auth_enabled", False)
+        )
         if start_module:
             self.session.start_module(self.module)
             self.session.add_mock_command(
@@ -197,6 +200,31 @@ class TestsCleepbus(unittest.TestCase):
             infos["remoteaccess"], '{"ngrok": "https://dummy.ngrok.app"}'
         )
 
+    def test_get_peer_infos_includes_auth(self):
+        self.init_session()
+        mock_pyrebus.return_value.get_mac_addresses.return_value = ["00:00:00:00:00:00"]
+        self.session.set_mock_command_response("get_auth_enabled", True)
+
+        infos = self.module.get_peer_infos()
+
+        self.assertEqual(infos["auth"], "1")
+
+    def test_device_info_to_zre_headers(self):
+        self.init_session()
+
+        headers = self.module._device_info_to_zre_headers({
+            "auth": True,
+            "remoteaccess": {"ngrok": "https://dummy.ngrok.app", "bad": None},
+        })
+
+        self.assertEqual(
+            headers,
+            {
+                "auth": "1",
+                "remoteaccess": '{"ngrok": "https://dummy.ngrok.app"}',
+            },
+        )
+
     def test_refresh_remote_access_header(self):
         self.init_session()
         mock_pyrebus.return_value.is_running.return_value = True
@@ -204,18 +232,37 @@ class TestsCleepbus(unittest.TestCase):
         self.session.set_mock_command_response(
             "get_remote_access_urls", {"ngrok": "https://dummy.ngrok.app"}
         )
-        self.module._Cleepbus__last_remote_access_refresh = 0
+        self.module._Cleepbus__last_peer_device_info_refresh = 0
+        self.module._Cleepbus__peer_device_info = {
+            "auth": False,
+            "remoteaccess": {},
+        }
 
-        self.module._refresh_remote_access_header()
+        self.module._refresh_peer_headers()
 
         mock_pyrebus.return_value.set_header.assert_called_once_with(
             "remoteaccess", '{"ngrok": "https://dummy.ngrok.app"}'
         )
 
         mock_pyrebus.return_value.set_header.reset_mock()
-        self.module._Cleepbus__last_remote_access_refresh = 0
-        self.module._refresh_remote_access_header()
+        self.module._Cleepbus__last_peer_device_info_refresh = 0
+        self.module._refresh_peer_headers()
         self.assertFalse(mock_pyrebus.return_value.set_header.called)
+
+    def test_refresh_auth_header(self):
+        self.init_session()
+        mock_pyrebus.return_value.is_running.return_value = True
+        mock_pyrebus.return_value.set_header.reset_mock()
+        self.session.set_mock_command_response("get_auth_enabled", True)
+        self.module._Cleepbus__last_peer_device_info_refresh = 0
+        self.module._Cleepbus__peer_device_info = {
+            "auth": False,
+            "remoteaccess": {},
+        }
+
+        self.module._refresh_peer_headers()
+
+        mock_pyrebus.return_value.set_header.assert_called_once_with("auth", "1")
 
     def test_get_peer_infos_exception(self):
         self.init_session()

@@ -39,8 +39,8 @@ class Cleepbus(CleepExternalBus):
 
     # Timeout for inventory get_modules when building peer headers at bus start
     PEER_INFOS_MODULES_TIMEOUT = 3.0
-    # How often to refresh the public address advertised to the next peer
-    REMOTE_ACCESS_REFRESH = 5.0
+    # How often to re-read core device info and update ZRE headers
+    PEER_DEVICE_INFO_REFRESH = 5.0
     # Avoid restart storms when network flaps or $TERM repeats
     RESTART_BACKOFF = 30.0
     # Ring buffer of recent bus activity for the config/debug page
@@ -79,8 +79,9 @@ class Cleepbus(CleepExternalBus):
         self.uuid = None
         self.__last_restart_attempt = 0.0
         self.__restart_pending = False
-        self.__remote_access_header = None
-        self.__last_remote_access_refresh = 0.0
+        # Last core device info turned into ZRE headers (see _get_peer_device_info)
+        self.__peer_device_info = None
+        self.__last_peer_device_info_refresh = 0.0
         # Recent activity (newest last). Entries::
         #   {ts, kind, summary, detail}
         self.__bus_log = deque(maxlen=self.BUS_LOG_SIZE)
@@ -138,9 +139,10 @@ class Cleepbus(CleepExternalBus):
         # get device hardware infos
         hardware = Tools.raspberry_pi_infos()
 
-        remote_access = self._remote_access_header()
-        self.__remote_access_header = remote_access
-        self.__last_remote_access_refresh = time.time()
+        # core device info → ZRE string headers (auth, remoteaccess, …)
+        device_info = self._get_peer_device_info()
+        self.__peer_device_info = device_info
+        self.__last_peer_device_info_refresh = time.time()
 
         return {
             "uuid": self.uuid,
@@ -148,9 +150,7 @@ class Cleepbus(CleepExternalBus):
             "hostname": self.hostname.get_hostname(),
             "port": str(self.rpc_config.get("port", 80)),
             "ssl": "1" if self.rpc_config.get("ssl") else "0",
-            "auth": "1" if self.rpc_config.get("auth") else "0",
             "cleepdesktop": "0",
-            "remoteaccess": remote_access,
             "apps": json.dumps(list(modules.keys())),
             "macs": json.dumps(macs),
             "hwmodel": f"{hardware['model']}",
@@ -160,6 +160,7 @@ class Cleepbus(CleepExternalBus):
             "hwwireless": "1" if hardware["wireless"] else "0",
             "hwethernet": "1" if hardware["ethernet"] else "0",
             "hwrevision": f"{hardware['revision']}",
+            **self._device_info_to_zre_headers(device_info),
         }
 
     @staticmethod
@@ -192,50 +193,53 @@ class Cleepbus(CleepExternalBus):
 
         return peer_infos
 
-    def _remote_access_header(self):
+    @staticmethod
+    def _device_info_to_zre_headers(info):
         """
-        Public addresses currently registered on this device, as a ZRE header value.
+        Map core peer device info to ZRE string headers.
+
+        Args:
+            info (dict): result of ``_get_peer_device_info()``
 
         Returns:
-            str: JSON object ``{application: url}``. ``{}`` when none is published.
+            dict: ZRE header name → string value
         """
-        urls = {}
-        try:
-            resp = self.send_command(
-                "get_remote_access_urls",
-                "inventory",
-                timeout=self.PEER_INFOS_MODULES_TIMEOUT,
-            )
-            if resp and not resp.error and isinstance(resp.data, dict):
-                urls = {
-                    str(name): url
-                    for name, url in resp.data.items()
-                    if isinstance(url, str) and url
-                }
-        except Exception:
-            self.logger.exception("Unable to read remote access urls")
-        return json.dumps(urls, sort_keys=True)
+        remoteaccess = info.get("remoteaccess") or {}
+        if not isinstance(remoteaccess, dict):
+            remoteaccess = {}
+        remoteaccess = {
+            str(name): url
+            for name, url in remoteaccess.items()
+            if isinstance(url, str) and url
+        }
+        return {
+            "auth": "1" if info.get("auth") else "0",
+            "remoteaccess": json.dumps(remoteaccess, sort_keys=True),
+        }
 
-    def _refresh_remote_access_header(self):
+    def _refresh_peer_headers(self):
         """
-        Publish the current public address on the bus headers.
-
-        ZRE sends headers when a peer connects. Updating them here makes the
-        next peer receive the address that is open at that moment.
+        Re-read core device info and update ZRE headers that changed.
         """
-        now = time.time()
-        if now - self.__last_remote_access_refresh < self.REMOTE_ACCESS_REFRESH:
-            return
         if not self.external_bus.is_running():
             return
 
-        self.__last_remote_access_refresh = now
-        header = self._remote_access_header()
-        if header == self.__remote_access_header:
+        now = time.time()
+        if now - self.__last_peer_device_info_refresh < self.PEER_DEVICE_INFO_REFRESH:
+            return
+        self.__last_peer_device_info_refresh = now
+
+        info = self._get_peer_device_info()
+        if info == self.__peer_device_info:
             return
 
-        self.__remote_access_header = header
-        self.external_bus.set_header("remoteaccess", header)
+        new_headers = self._device_info_to_zre_headers(info)
+        old_headers = self._device_info_to_zre_headers(self.__peer_device_info or {})
+        self.__peer_device_info = info
+
+        for name, value in new_headers.items():
+            if old_headers.get(name) != value:
+                self.external_bus.set_header(name, value)
 
     @staticmethod
     def _as_bool(value, default=False):
@@ -273,7 +277,7 @@ class Cleepbus(CleepExternalBus):
         Must stay short: BusClient pulls internal messages after this call.
         If the pyre node signals death ($TERM / beacon gone), restart discovery.
         """
-        self._refresh_remote_access_header()
+        self._refresh_peer_headers()
 
         if self.external_bus.is_running():
             try:

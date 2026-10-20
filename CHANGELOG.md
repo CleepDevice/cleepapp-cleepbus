@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Refresh the peer `auth` header from inventory so desktop sees live HTTP basic-auth state (same cadence as `remoteaccess`)
+
+### Changed
+- Map core peer device info (`_get_peer_device_info`) to ZRE headers in the app; inventory stays in `CleepExternalBus`
+
 ## [2.3.4] - 2026-10-16
 
 ### Added
