@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "pip": [
+    "https://github.com/CleepDevice/cleep-libs-prebuild/raw/main/pyzmq/bullseye/pyzmq-22.3.0-cp39-cp39-linux_armv7l.whl",
+    "pyre-gevent==1.0.0"
+  ]
+}
