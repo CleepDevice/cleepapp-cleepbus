@@ -8,6 +8,7 @@
 ### Changed
 - Replace `postinst.sh` with declarative `scripts/postinst.json`
 - Map core peer device info (`_get_peer_device_info`) to ZRE headers in the app; inventory stays in `CleepExternalBus`
+- Apply changes to new test stack (pylint)
 
 ## [2.3.4] - 2026-10-16
 

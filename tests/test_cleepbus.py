@@ -1,10 +1,8 @@
 from cleep.libs.tests import session, lib
 import unittest
 import logging
-import sys
 import json
 import copy
-sys.path.append("../")
 from backend.cleepbus import Cleepbus
 from backend.pyrebus import PyreBus
 from cleep.exception import (
