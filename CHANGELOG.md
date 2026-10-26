@@ -6,6 +6,7 @@
 - Refresh the peer `auth` header from inventory so desktop sees live HTTP basic-auth state (same cadence as `remoteaccess`)
 
 ### Changed
+- Read device uuid from core (`get_device_uuid` / cleep.conf); peer header key remains `uuid`
 - Replace `postinst.sh` with declarative `scripts/postinst.json`
 - Map core peer device info (`_get_peer_device_info`) to ZRE headers in the app; inventory stays in `CleepExternalBus`
 - Apply changes to new test stack (pylint)

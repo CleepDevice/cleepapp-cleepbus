@@ -65,8 +65,9 @@ class TestsCleepbus(unittest.TestCase):
         mock_pyrebus.return_value.run_once.side_effect = None
         mock_pyrebus.return_value.endpoint = None
 
-    def init_session(self, start_module=True):
+    def init_session(self, start_module=True, device_uuid="123-456-789"):
         self.module = self.session.setup(Cleepbus, mock_on_start=False, mock_on_stop=False)
+        self.module.get_device_uuid = Mock(return_value=device_uuid)
         self.session.add_mock_command(
             self.session.make_mock_command("get_remote_access_urls", {})
         )
@@ -120,9 +121,7 @@ class TestsCleepbus(unittest.TestCase):
         return infos
 
     def test_configure(self):
-        self.init_session(False)
-        self.module._get_config_field = Mock(return_value=None)
-        self.module._set_config_field = Mock()
+        self.init_session(False, device_uuid="core-device-uuid")
 
         self.session.start_module(self.module)
 
@@ -134,24 +133,8 @@ class TestsCleepbus(unittest.TestCase):
             ANY,
             ANY,
         )
-        self.module._set_config_field.assert_called_with("uuid", self.module.uuid)
-
-    def test_configure_no_uuid_update(self):
-        self.init_session(False)
-        self.module._get_config_field = Mock(return_value="123-456-789")
-        self.module._set_config_field = Mock()
-
-        self.session.start_module(self.module)
-
-        mock_pyrebus.assert_called_with(
-            self.module._on_message_received,
-            self.module._on_peer_connected,
-            self.module._on_peer_disconnected,
-            self.module._decode_peer_infos,
-            ANY,
-            ANY,
-        )
-        self.assertFalse(self.module._set_config_field.called)
+        self.assertEqual(self.module.uuid, "core-device-uuid")
+        self.module.get_device_uuid.assert_called()
 
     def test_get_peer_infos(self):
         self.init_session()
@@ -232,6 +215,7 @@ class TestsCleepbus(unittest.TestCase):
         )
         self.module._Cleepbus__last_peer_device_info_refresh = 0
         self.module._Cleepbus__peer_device_info = {
+            "uuid": self.module.uuid,
             "auth": False,
             "remoteaccess": {},
         }
@@ -254,6 +238,7 @@ class TestsCleepbus(unittest.TestCase):
         self.session.set_mock_command_response("get_auth_enabled", True)
         self.module._Cleepbus__last_peer_device_info_refresh = 0
         self.module._Cleepbus__peer_device_info = {
+            "uuid": self.module.uuid,
             "auth": False,
             "remoteaccess": {},
         }

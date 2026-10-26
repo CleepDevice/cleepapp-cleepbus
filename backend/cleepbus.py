@@ -3,7 +3,6 @@
 
 import json
 import time
-import uuid
 from collections import deque
 from cleep.core import CleepExternalBus
 from cleep.libs.configs.hostname import Hostname
@@ -35,7 +34,7 @@ class Cleepbus(CleepExternalBus):
     MODULE_URLBUGS = "https://github.com/CleepDevice/cleepapp-cleepbus/issues"
 
     MODULE_CONFIG_FILE = "cleepbus.conf"
-    DEFAULT_CONFIG = {"uuid": None}
+    DEFAULT_CONFIG = {}
 
     # Timeout for inventory get_modules when building peer headers at bus start
     PEER_INFOS_MODULES_TIMEOUT = 3.0
@@ -90,12 +89,7 @@ class Cleepbus(CleepExternalBus):
         """
         Configure module
         """
-        # set device uuid if not setted yet
-        self.uuid = self._get_config_field("uuid")
-        if self.uuid is None:
-            self.logger.debug("Set device uuid")
-            self.uuid = str(uuid.uuid4())
-            self._set_config_field("uuid", self.uuid)
+        self.uuid = self.get_device_uuid()
 
     def get_peer_infos(self):
         """
@@ -143,6 +137,7 @@ class Cleepbus(CleepExternalBus):
         device_info = self._get_peer_device_info()
         self.__peer_device_info = device_info
         self.__last_peer_device_info_refresh = time.time()
+        self.uuid = device_info.get("uuid") or self.uuid
 
         return {
             "uuid": self.uuid,
